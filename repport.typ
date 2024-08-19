@@ -672,12 +672,10 @@ the analysis takes around `0.430s` for the new checker to be analyzed, and aroun
 (see @details-performances-test for details about the tests.)
 
 
-The final implementation for arrays counts around 3,500 lines of code. This is pretty small for a safety checker, due to the fact that the numeric 
-relation domain and basic statements are already handled by MOPSA, so only the specificities of Jasmin had to be implemented
+The final implementation for the arrays feature counts around 3,000 lines of code. The previous safety checker that performed more checks has 7,000 lines of code. 
+However, around 1,000 lines of code in the new safety checker are for extending the MOPSA AST and translating the Jasmin AST to MOPSA.
 
 = Future
-
-
 
 This new safety checker, written with MOPSA, is faster than the previous one, and the way MOPSA is built provides 
 some ideas to add more checks inside the safety checker. However, implementing the support of basic memory will be 
