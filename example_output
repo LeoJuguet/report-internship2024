@@ -1,0 +1,20 @@
+[1;38;5;40mAnalysis terminated successfully[0m
+Analysis time: 0.005s
+
+[1;38;5;208m⚠[0m Check #4:
+[1mjasa/tests/test_multiples_files/test_files2.jazz:12.1-14[0m: [1;38;5;208mwarning[0m: [1;38;5;208mJasmin Scalar Initialization[0m
+  
+  [1m12[0m:     [1;38;5;208mc = add(a,b);[0m
+          [1;38;5;208m^^^^^^^^^^^^^[0m
+  '⊤:T_J_U64' is not initialized
+
+
+[1;38;5;9m✗[0m Check #8:
+[1m{jasa/tests/test_multiples_files/test_files2.jazz}::return expression of f[0m: [1;38;5;9merror[0m: [1;38;5;9mJasmin Scalar Initialization[0m
+  
+  
+  'c' is not initialized
+
+Checks summary: [1m8 total[0m, [1;38;5;40m✔ 6 safe[0m, [1;38;5;9m✗ 1 error[0m, [1;38;5;208m⚠ 1 warning[0m
+  Jasmin Scalar Initialization: 8 total, [1;38;5;40m✔ 6 safe[0m, [1;38;5;9m✗ 1 error[0m, [1;38;5;208m⚠ 1 warning[0m
+
