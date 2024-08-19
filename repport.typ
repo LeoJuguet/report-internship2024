@@ -463,9 +463,6 @@ Four variables are to represent the limit of segments, and three are for represe
 So an array $a$ can be represented like that $a = {b_0} s_1 {b_1} s_2 {b_2} s_3 {b_3}$ with the properties $0 <= b_1 <= b_2 <= "len"(a)$.
 Moreover $b_0$ and $b_3$ are always constant with repectively the value $0$ and $len(a)$.
 
-
-$ VV times VV times VV times VV times VV times VV times VV$
-
 Variables never change, whe only reassign variable with new values, this permit to delegate operations,
 union, intersection, to other domain were the variable live.
 
@@ -478,11 +475,9 @@ $
   e_1 = e_2 = e_3 = top "and not init"
 $
 
-This method is pretty simple to implement in mopsa. The only case that you need to deal is when you want get a result or we want assign a 
+This method is pretty simple to implement in mopsa. The only case that you need to deal is when you want get a result or when we want assign a 
 value.
 
-The initialisation of arrays from one border to an other border represent the majority
-of cases that we can encounter in Jasmin.
 
 === Setter
 
@@ -608,38 +603,41 @@ in this case for the moment we send $top$ value in numerical domains, to be sure
 
 = Memory
 
-#emoji.warning *Warning :* this part is not implemented yet in the safety checker.
+#emoji.warning *Warning :* this part is not yet implemented in the safety checker.
 
 
-The memory model in Jasmin is pretty simple, it can be view like an big array.
-In the previous safety checker, this one was able to infere wich region of an array has to be
-initialised. But this mecanism don't seem useful and constraint give by the programmer is 
-prefered, to ensure that the programmer know what it does. For this we prefer that
-the programmer give by the annotation system of Jasmin a contract @contract 
 
-If we suppose that each pointer give by the programmer point to a distinct region
-(there is no overlapp between the region defined by each pointer), we can reuse the 
-3 segment implementation that we use previously for arrays @3-array-segs.
+The memory model in Jasmin is pretty simple, it can be viewed as a large array.
 
-The contracts plan for the moments are contracts constituate of 3 predicates :
-- `init_memory(v: var,offset: int,len: int)` define that the region $[v + "offset"; v + "offset" + "len"]$ is readable, so it's and initialized region 
-- `write_memory(v: var,offset: int,len: int)` define that the region $[v + "offset"; v + "offset" + "len"]$ is writable
-- `assig_memory(v: var,offset: int,len: int)` define that the region $[v + "offset"; v + "offset" + "len"]$ is initialized 
+In the previous safety checker, it was able to infer which regions of an array 
+had to be initialized. But this mechanism does not seem useful, and the constraints 
+given by the programmer are preferred, to ensure that the programmer knows what they 
+are doing. For this, we prefer that the programmer provides a contract @contract through the Jasmin annotation system.
 
-To check out of bounds access in memory, so access at place were we cannot write, we can easily
-check that we are in one of bounds declared readable, like in jasmin the use allocate the memory before the call,
-and generally there is no lot of arguments to function call, the number of segments will be finite and not expensive.
-For check if we can write in a place, the same check as before can be done.
+If we assume that each pointer provided by the programmer points to a distinct region 
+(there is no overlap between the regions defined by each pointer), we can reuse the 
+3-segment implementation that we previously used for arrays @3-array-segs.
 
-The complicated parted is to check if a region is not initialized at the call of the function is
-well initialized at a moment during the execution of the call or at the end. So to check the predicate `assign_memory`.
-If we supposed the strong assumption that each pointer point to a different region of memory, then we can consider
-each pointer like an array of length $max_(("offset","len")in P_v)("offset+len")$ and we can set initialized the region
-that we know is initialized, if this one is in one side of the array.
 
-This method, like it was unfortunately not tested in pratice, seems handle a majority of cases. And
-the only real problem come from the impossibility to have aliasing on pointer.  
+The planned contracts for the moment consist of 3 predicates:
 
+- `init_memory(v: var, offset: int, len: int)` defines that the region $[v + "offset"; v + "offset" + "len"]$ is readable, so it is an initialized region.
+- `write_memory(v: var, offset: int, len: int)` defines that the region $[v + "offset"; v + "offset" + "len"]$ is writable.
+- `assign_memory(v: var, offset: int, len: int)` defines that the region $[v + "offset"; v + "offset" + "len"]$ is initialized.
+
+To check for out-of-bounds access in memory, i.e., access to places where we cannot write, we can easily check that we are within the 
+bounds declared as readable. In Jasmin, the memory is allocated before the call, and generally, there are not many arguments to function calls,
+so the number of segments will be finite and not expensive.
+To check if we can write to a place, the same check as before can be done.
+The complicated part is to check if a region that is not initialized at the function call but is well-initialized at some point during the 
+execution of the call or at the end. So, to check the `assign_memory` predicate.
+If we assume the strong assumption that each pointer points to a different region of memory without overlapp, then we can consider each pointer as an 
+array of length $max_(("offset", len) in P_v)("offset"+len)$ (with $P_v$ the set
+of pair offset, length that appear in a predicate relatif to $v$) 
+and we can set as initialized the regions that we know are initialized, if they are on one side of the array.
+
+This method, which unfortunately has not been tested in practice, seems to handle a majority of cases. 
+The only real problem comes from the inability to handle pointer aliasing.
 
 = Contract and function call <contract>
 
@@ -664,19 +662,15 @@ and we assign the return value to $top$ and initialized for the case of scalar v
 
 To give an idea of the performance of the new safety checker, we tried it on the `ntt` function @ntt-function.
 
-With the old safety checker, the analysis of the function took `30 seconds`, this is now possible in less than `3 seconds`
-#footnote(
-[
-  On a machine with : 
-  CPU : `AMD Ryzen 7 7840HS w/ Radeon 780M Graphics (16) @ 5.137GHz`,
-  GPU : `AMD ATI c1:00.0 Phoenix1`,
-  Memory : `16Gb DDR5 5600Mhz`
-] 
-). 
+With the old safety checker, the analysis of the function took `30 seconds`, this is now possible in less than `3 seconds`.
 However, in both cases with the widening, we are only able to prove that the array is well-initialized (because it is well-initialized before). 
 Due to the upper bound approximation of scalars in the loop for the widening, we are not able to prove that there is no out-of-bounds access.
 If we unroll the loop, we are able to prove that the array is well-initialized and there is no out-of-bounds access, 
-this takes `45 seconds` with the new safety checker. With the older safety checker, after 3 hours, the analysis was not finished.
+this takes `45 seconds` with the new safety checker. With the older safety checker, after `3 hours`, the analysis was not finished.
+In another file with 6 different functions #footnote([#link("https://github.com/LeoJuguet/jasmin/blob/cryptoline-mopsa/compiler/jasa/tests/test_poly.jazz")]), 
+the analysis takes around `0.430s` for the new checker to be analyzed, and around `6.37s` for the previous checker. 
+(see @details-performances-test for details about the tests.)
+
 
 The final implementation for arrays counts around 3,500 lines of code. This is pretty small for a safety checker, due to the fact that the numeric 
 relation domain and basic statements are already handled by MOPSA, so only the specificities of Jasmin had to be implemented
@@ -755,3 +749,32 @@ So for a function simple like that the difference is important.
 
 
 #raw(read( "ntt.jazz"), block: true, lang: "jasmin")
+
+
+
+== Details of performances test <details-performances-test>
+
+The test was executed on a machine with:
+- CPU: `AMD Ryzen 7 7840HS w/ Radeon 780M Graphics (16) @ 5.137GHz`
+- GPU: `Radeon 780M`
+- Memory: `16GB DDR5 5600MHz`
+- OS: `Linux`
+
+To test the performance of the new safety checker, we ran the following command in the `compiler` folder of the project:
+
+```bash
+time ./jasa.exe -config jasa/share/config_default.jazz file_test.jazz
+```
+
+The additional argument `-loop-full-unrolling=true` was added to perform the test with full unrolling.
+
+To test the old safety checker, we ran the following command:
+
+```bash
+time jasminc -checksafety file_test.jazz
+```
+
+Before running this test, we verified that all functions were marked for export.
+
+To test unrolling with the old safety checker, we generated a config file with `-safetymakeconfigdoc` and 
+modified the `k_unroll` argument to `10000`, which simulates a large amount of loop unrolling.
