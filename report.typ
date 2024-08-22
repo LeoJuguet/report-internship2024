@@ -59,11 +59,25 @@
 
 #let len = "len"
 
-#let semExpr(expr) = [#text(red)[$EE[|$]$expr$#text(red)[$|]$]]
-#let semStmt(stmt) = [#text(red)[$SS[|$]$stmt$#text(red)[$|]$]]
-#let semCond(cond) = [#text(red)[$CC[|$]$cond$#text(red)[$|]$]]
+#let semOf(expr, isabstract: true, name ) = [
+  #let abstrcat = if isabstract {
+  	math.hash
+  } else {
+  	""
+  }
+  
+  #text(red)[$name^abstrcat [|$]$expr$#text(red)[$|]$]
+  
+  ]
+
+#let semExpr(expr, isabstract : false) = semOf(expr, isabstract: isabstract, $EE$) 
+#let semStmt(stmt, isabstract : false) = semOf(stmt, isabstract: isabstract, $SS$)
+#let semCond(cond, isabstract : false) = semOf(cond, isabstract: isabstract, $CC$)
 
 
+#let semExprA(expr, isabstract : true) = semOf(expr, isabstract: isabstract, $EE$) 
+#let semStmtA(stmt, isabstract : true) = semOf(stmt, isabstract: isabstract, $SS$)
+#let semCondA(cond, isabstract : true) = semOf(cond, isabstract: isabstract, $CC$)
 
 // Truc
 #let title = [
@@ -139,19 +153,19 @@ analyze a significant program.
 
 Jasmin has a low-level approach, with a syntax that is a mix between assembly, C, and Rust. Jasmin has 3 types:
 
--    bool for boolean
--    inline integers that are not saved somewhere but directly written in the source code when the compiler unrolls the loop
--    words of size with the size in ${8,16,32,64,128,256}$
--    arrays of words of fixed length at compile time
--    pointers that point to a memory space
+- bool for boolean
+- inline integers that are not saved somewhere but directly written in the source code when the compiler unrolls the loop
+- words of size with the size in ${8,16,32,64,128,256}$
+- arrays of words of fixed length at compile time
+- pointers that point to a memory space
 
 The user has to specify if a variable has to be in a register or on the stack. But this will not affect the static analysis.
 
 A Jasmin program is a collection of:
 
--    parameters (that are removed right after the parsing)
--    global variables (that are immutable)
--    functions (they can't be recursive)
+- parameters (that are removed right after the parsing)
+- global variables (that are immutable)
+- functions (they can't be recursive)
 
 The control flow of a Jasmin program is simple, with blocks, if statements, for loops, and while loops, all of which have a classic semantic of an imperative language.
 
@@ -169,6 +183,9 @@ In the following report, we will not talk about division by zero, even if a prot
 because Jasmin is focused on cryptography code, and in particular constant-time programs. Division operations are not used 
 because they are not constant-time operatorsa.
 = Overview of Abstract Interpretation <abstract-interpretation>
+
+> *Note* : this part and @overview-mopsa are mostly a resume of @mopsa-phd, it only resume for the comprehension and small details to fit
+with Jasmin. For proof and more details, please refer to this document.
 
 Abstract interpretation is a technique in the field of static analysis of programs. It analyzes a program by an upper approximation way, 
 without having to execute the program.
@@ -275,6 +292,7 @@ MOPSA, which stands for Modular Open Platform for Static Analysis, is a research
 that develops a tool in OCaml of the same name. The goal is to create static analyzers based
 on abstract domains modularity.
 
+
 (* TODO: Insert an image to represent MOPSA *)
 
 In MOPSA, to register a new abstraction, the developer only needs to register a Domain.
@@ -307,6 +325,7 @@ Variables are evaluate in a context $sigma$.
 $
   semExpr(v)sigma = { sigma(v) }\
   semExpr(z in ZZ)sigma = {z} \
+  semExpr(e_1 smash e_2) = semExpr(e_1) smash semExpr(e_2) \
 $
 
 
@@ -319,12 +338,31 @@ $
 $ 
 
 $
-  semStmt([s_1; ...;  s_n]) = semStmt(s_n) circle ... circle semStmt(s_1) \
+  semStmt(s_1\; ...\;  s_n) = semStmt(s_n) circle ... circle semStmt(s_1) \
   semStmt("if" c {s_t} "else" {s_f}) = semStmt(s_t) circle semCond(c) join semStmt(s_f) circle semCond(not c) \
-  semStmt( x = e)Sigma = {sigma[x <- v] | sigma in Sigma, v in semExpr(e)sigma}
+  semStmt( x = e)Sigma = {sigma[x <- v] | sigma in Sigma, v in semExpr(e)sigma} \
+  semStmt("for" v = c_1 "to" c_2 { s }) = semStmt(v = c_1\; "while" v < s { s; v = v + 1;}) \
+  semStmt("while" c { s_1 } (s_2)) = semStmt( s_2 \; "while" c { s_1 \; s_2 } ) \
+  semStmt("while" c { s_1 })Sigma = semCond(not c) ( union.big_(n in NN) (semStmt(s) circle.small semCond(c))^n Sigma)
 $
 
+$
+  semStmtA(s_1\; ...\;  s_n) = semStmtA(s_n) circle ... circle semStmtA(s_1) \
+  semStmtA("if" c {s_t} "else" {s_f}) = semStmtA(s_t) circle semCondA(c) join semStmtA(s_f) circle semCondA(not c) \
+  semStmtA( x = e)Sigma = {sigma[x <- v] | sigma in Sigma, v in semExprA(e)sigma} \
+  semStmtA("for" v = c_1 "to" c_2 { s }) = semStmtA(v = c_1\; "while" v < s { s; v = v + 1;}) \
+  semStmtA("while" c { s_1 } (s_2)) = semStmtA( s_2 \; "while" c { s_1 \; s_2 } ) \
+  semStmtA("while" c { s_1 })Sigma = semCondA(not c) lim delta^n (bot) "with" delta(x^hash) = x^hash widen (sigma^hash union.sq^hash semCondA(s) circle.small semCondA(c) x^hash)
+$
+In Jasmin, a function only have one `return` statement, at the end of the function.
+
+But calculate all theses states takes to many times, so we abstract them.
+
 These statments are classic in abstract interpration so Mopsa, already have domain that handle theses statments.
+
+
+
+
 
 == Default Domain
 
@@ -358,6 +396,16 @@ diagram(
 The $bot$ value of this abstraction is never reached, and is only present to have a lattice.
 $Init.maybe$ play the role of $top$.
 
+
+$ 
+a meet b = a join b = cases("if" a = Init.init and b = Init.init "then" Init.init, "else" Init.inot)
+$
+$
+  semExpr(a star b) = semExpr(a) union semExpr(b) "whith" star in { + , - , * , \/ , %} \
+  semExpr(circle.filled.small a) = semExpr( a )  "whith" circle.filled.small in { + , - } \
+  semExpr(c) = Init.init "with" c "a constant" \
+$
+
 $
   a meet b = a widen b = a join b = cases(
     a "if" a = b,
@@ -366,17 +414,23 @@ $
 $
 
 $
-  semExpr(a star b) = semExpr(a) union semExpr(b) "whith" star in { + , - , * , \/ , %} \
-  semExpr(circle.filled.small a) = semExpr( a )  "whith" circle.filled.small in { + , - } \
-  semExpr(c) = Init.init "with" c "a constant" \
+  semExprA(a star b) = semExprA(a) union semExprA(b) "whith" star in { + , - , * , \/ , %} \
+  semExprA(circle.filled.small a) = semExprA( a )  "whith" circle.filled.small in { + , - } \
+  semExprA(c) = Init.init "with" c "a constant" \
 $
 
+We also add a special instruction `InitVariable(var)` that takes a variable and return the same
+context where the variable in argument is now initialized.
 
 Inside abstract interpretation these values can be interpret has :
 - $Init.maybe$ there exist a path were the variable can be initialized
 - $Init.init$ for all path the variable is initialized
 - $Init.inot$ for all path the variable is not initialized
 
+We also defined $gamma(v) = {top_("typeof"(v))} $.
+
+$Init.maybe$ help to continue the analysis without the knowledge that there exist a path were the varible
+is initialized.
 
 This is a value abstract domain. So we can implement it in Mopsa and have a correct
 abstract interpretation of the initialisation of scalar variables.
@@ -410,7 +464,8 @@ To initialize an array, different methods exist:
 
 *Expanding the array:* A first approach is to define a variable for each cell of an array. This can work in Jasmin because 
 arrays have a fixed size. However, this will be memory-consuming, and there is a risk of slowing down the analysis, because 
-the analysis has to iterate over all cells when we do an assignment with an index that has an overapproximation value in the analysis.
+the analysis has to iterate over all cells when we do an assignment with an index that has an overapproximation value in the analysis,
+and this ask to unroll loops.
 
 *Array smashing:* This approach abstracts a variable by a single variable that represents the entire content of the array, 
 but this will not work in your case to prove the initialization.
@@ -601,6 +656,38 @@ in this case for the moment we send $top$ value in numerical domains, to be sure
 
 === Soundness
 
+
+= Contract and function call <contract>
+
+Like in lot of programming language, it's possible in Jasmin to do function call,
+but a function call didn't have any side effect, like jasmin program didn't produce any
+side effect.
+A function call take differents a predefined number of argument and return a tuple
+of argument that is imediately split when we do an assign of a function call
+this is write like this ```jasmin v1, v2, v3 = f(e1,e2,e3);``` in jasmin.
+
+We name a contract a list of precondition or postcondition that an function has to verify.
+Mopsa already have a contract languages for C @contract-paper and it's similar to Frama-C's ACSL but there are
+used only if the function source is not available. However in Jasmin's team we want be able to check independently 
+each function. So we slightly modify from our side the comportment of contract, by modifing our domain on your side.
+
+The new comportment is :
+When we have a function call, we check if we have a contract associated to this function,
+if yes we check that the requires are satifies, and we apply the post-condition to the variable $v_i$.
+Otherwise if we didn't found any requires we only check that the scalar in argument are well initialized,
+and we assign the return value to $top$ and initialized for the case of scalar variable.
+
+Jasmin has an experimental feature of contract to send it to Easycript or Cryptoline, we reuse the syntaxt tree where 
+we catch expression of the following form that we can translate to Mopsa stubs.
+
+Supported contract in Jasmin, for this experimentation are :
+- Conjonction of proposition
+- `init_array(v : var, offset: int, len: int)` a propostion that affirm that the array `v` is well initialized between the indexes `offset` and `int`
+- Post and Pre condition
+
+*Remark :* the contract language from user side didn't have a proposition to say that a scalar variable is initialized, because this is a pre and post condition
+that have to be check for every function. 
+
 = Memory
 
 #emoji.warning *Warning :* this part is not yet implemented in the safety checker.
@@ -623,7 +710,7 @@ The planned contracts for the moment consist of 3 predicates:
 
 - `init_memory(v: var, offset: int, len: int)` defines that the region $[v + "offset"; v + "offset" + "len"]$ is readable, so it is an initialized region.
 - `write_memory(v: var, offset: int, len: int)` defines that the region $[v + "offset"; v + "offset" + "len"]$ is writable.
-- `assign_memory(v: var, offset: int, len: int)` defines that the region $[v + "offset"; v + "offset" + "len"]$ is initialized.
+- `assign_memory(v: var, offset: int, len: int)` defines that the region $[v + "offset"; v + "offset" + "len"]$ is initialized, at the output of the function.
 
 To check for out-of-bounds access in memory, i.e., access to places where we cannot write, we can easily check that we are within the 
 bounds declared as readable. In Jasmin, the memory is allocated before the call, and generally, there are not many arguments to function calls,
@@ -638,20 +725,6 @@ and we can set as initialized the regions that we know are initialized, if they 
 
 This method, which unfortunately has not been tested in practice, seems to handle a majority of cases. 
 The only real problem comes from the inability to handle pointer aliasing.
-
-= Contract and function call <contract>
-
-Like in lot of programming language, it's possible in Jasmin to do function call,
-but a function call didn't have any side effect, like jasmin program didn't produce any
-side effect.
-A function call take differents a predefined number of argument and return a tuple
-of argument that is imediately split when we do an assign of a function call
-this is write like this ```jasmin v1, v2, v3 = f(e1,e2,e3);``` in jasmin.
-
-When we have a function call, we check if we have a contract associated to this function,
-if yes we check that the requires are satifies, and we apply the ensures to the variable $v_i$.
-Otherwise if we didn't found any requires we only check that the scalar in argument are well initialized,
-and we assign the return value to $top$ and initialized for the case of scalar variable.
 
 = Performance and Implementation <perf>
 
@@ -700,7 +773,8 @@ Similar things can also be done for system calls, which are not yet handled.
 The new safety checker written with MOPSA is faster than the previous one and offers the possibility of carrying out more checks in the future.
 Futhermore, Mopsa's modularity means that the code is more readable, faster and easier to add options to. For the moment, 
 the checker correctly checks variable initialisation, array initialisation in most cases and out-of-bounds accesses. 
-In addition, it's modular and works using a contract system.
+In addition, it's modular and works using a contract system. But MOPSA, offer after a time of adaptation to understant who
+each domains live together a simple and easy way to add more domains for specific analysis.
 
 = Acknowledgements
 
