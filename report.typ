@@ -25,7 +25,7 @@
 #let def_counter = counter("definition")
 
 #let def(title,text) = block(
-  fill: luma(240),
+  fill: rgb("#edFCe6"),
   stroke: green,
   radius : 2pt,
   inset: 1em,
@@ -282,6 +282,25 @@ on abstract domains modularity.
 
 
 (* TODO: Insert an image to represent MOPSA *)
+
+MOPSA work with Domain, a domain, named a composable domain
+
+#def("Composable abstract domain")[
+  A value abstract domain is :
+  - an abstract poset $(D^hash, subset.sq.eq\ ^hash)$
+  - a smallest element $bot$ and a largest element $top$
+  - Sound abstractions of set union and intersection $union.sq.big^hash, meet.big.sq^hash$
+  - a widening operator $widen$
+  - a partial expression and statement transfer functions, operating on the global abstraction 
+    state $Sigma^hash$. The global abstraction state $Sigma^hash$ corresponds to inhabitants of the type
+    'a in the domain signature of Listing 3.7. The star is used to denote a list (i.e., a case
+    disjunction), potentially empty (meaning that this domain does not handle this case).
+    $semExprA("expr" in Epsilon,domain: D^hash)$, $semStmtA("stmt" in S, domain: D^hash)$
+  - Concrete input and output states of the abstract domain, written $D^"in"$ and $D^"out"$
+  - a concretisation operator $gamma : D^hash -> P(P(D^"in") times P(D^"out"))$
+]
+
+
 
 In MOPSA, to register a new abstraction, the developer only needs to register a Domain.
 
@@ -732,11 +751,16 @@ The only real problem comes from the inability to handle pointer aliasing.
 
 = Performance and Implementation <perf>
 
+#figure(
+[
+#set align(left)
+
 #ansi-render(
   read("example_output"),
   theme: terminal-themes.tango-dark
+)],
+caption: "Example of output of the safety checker when there is an error or a warning"
 )
-
 To give an idea of the performance of the new safety checker, we tried it on the `ntt` function @ntt-function.
 
 With the old safety checker, the analysis of the function took `30 seconds`, this is now possible in less than `3 seconds`.
