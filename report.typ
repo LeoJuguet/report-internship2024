@@ -38,7 +38,7 @@
 
 // Defined some symbols
 
-#let widen = math.triangle.stroked.t
+#let widen = math.gradient
 #let join = math.union
 #let meet = math.sect
 
@@ -59,14 +59,14 @@
 
 #let len = "len"
 
-#let semOf(expr, isabstract: true, name ) = [
+#let semOf(expr, isabstract: true, domain : "",name ) = [
   #let abstrcat = if isabstract {
   	math.hash
   } else {
   	""
   }
   
-  #text(red)[$name^abstrcat [|$]$expr$#text(red)[$|]$]
+  #text(red)[$name^abstrcat_domain [|$]$expr$#text(red)[$|]$]
   
   ]
 
@@ -75,9 +75,9 @@
 #let semCond(cond, isabstract : false) = semOf(cond, isabstract: isabstract, $CC$)
 
 
-#let semExprA(expr, isabstract : true) = semOf(expr, isabstract: isabstract, $EE$) 
-#let semStmtA(stmt, isabstract : true) = semOf(stmt, isabstract: isabstract, $SS$)
-#let semCondA(cond, isabstract : true) = semOf(cond, isabstract: isabstract, $CC$)
+#let semExprA(expr, isabstract : true,domain : "") = semOf(expr, isabstract: isabstract,domain: domain , $EE$) 
+#let semStmtA(stmt, isabstract : true,domain : "") = semOf(stmt, isabstract: isabstract,domain: domain, $SS$)
+#let semCondA(cond, isabstract : true,domain : "") = semOf(cond, isabstract: isabstract,domain: domain, $CC$)
 
 // Truc
 #let title = [
@@ -338,14 +338,21 @@ In Jasmin, a function only have one `return` statement, at the end of the functi
 
 === Semantic of Jasmin Abstraction
 Like it's not possible to calculate the exact semantic of jasmin, we calculate an overapproximation of states.
+In particular for while loops, we didn't try to calculate the fixpoint of each possible iteration, but we use the 
+widening operator (defined in @widening)
+
 $
   semStmtA(s_1\; ...\;  s_n) = semStmtA(s_n) circle ... circle semStmtA(s_1) \
   semStmtA("if" c {s_t} "else" {s_f}) = semStmtA(s_t) circle semCondA(c) join semStmtA(s_f) circle semCondA(not c) \
   semStmtA( x = e)Sigma = {sigma[x <- v] | sigma in Sigma, v in semExprA(e)sigma} \
   semStmtA("for" v = c_1 "to" c_2 { s }) = semStmtA(v = c_1\; "while" v < s { s; v = v + 1;}) \
   semStmtA("while" c { s_1 } (s_2)) = semStmtA( s_2 \; "while" c { s_1 \; s_2 } ) \
-  semStmtA("while" c { s_1 })Sigma = semCondA(not c) lim delta^n (bot) "with" delta(x^hash) = x^hash widen (sigma^hash union.sq^hash semCondA(s) circle.small semCondA(c) x^hash)
+  semStmtA("while" c { s_1 })sigma^hash = semCondA(not c) lim delta^n (bot) "with" delta(x^hash) = x^hash widen (sigma^hash union.sq^hash semCondA(s) circle.small semCondA(c) x^hash)
 $
+
+
+
+To have a better approximation of loops, Mopsa, always unroll the first iteration of the loop.
 
 But calculate all theses states takes to many times, so we abstract them.
 
@@ -387,29 +394,33 @@ diagram(
 The $bot$ value of this abstraction is never reached, and is only present to have a lattice.
 $Init.maybe$ play the role of $top$.
 
-
-$ 
-a meet b = a join b = cases("if" a = Init.init and b = Init.init "then" Init.init, "else" Init.inot)
+#figure(
+[
 $
-$
-  semExpr(a star b) = semExpr(a) union semExpr(b) "whith" star in { + , - , * , \/ , %} \
+  semExpr(a star b) = cases("if" semExpr(a) = Init.init and semExpr(b) = Init.init "then" Init.init, "else" Init.inot) "whith" star in { + , - , * , \/ , %} \
   semExpr(circle.filled.small a) = semExpr( a )  "whith" circle.filled.small in { + , - } \
   semExpr(c) = Init.init "with" c "a constant" \
-$
+  semStmt( v = e)Sigma = { sigma{ v <- i} | sigma in Sigma, i in semExpr(e)sigma}
+$]
+, caption: "concrete semantic of variable initialization"
+)
 
+#let init_domain = "Init"
+#figure(
+[
 $
   a meet b = a widen b = a join b = cases(
     a "if" a = b,
     Init.maybe  "if" a != b,
   )
 $
-
 $
-  semExprA(a star b) = semExprA(a) union semExprA(b) "whith" star in { + , - , * , \/ , %} \
-  semExprA(circle.filled.small a) = semExprA( a )  "whith" circle.filled.small in { + , - } \
-  semExprA(c) = Init.init "with" c "a constant" \
-$
-
+  semExprA(a star b, domain: #init_domain) = semExprA(a, domain: #init_domain) union semExprA(b, domain: #init_domain) "whith" star in { + , - , * , \/ , %} \
+  semExprA(circle.filled.small a, domain: #init_domain) = semExprA( a, domain: #init_domain )  "whith" circle.filled.small in { + , - } \
+  semExprA(c, domain: #init_domain) = Init.init "with" c "a constant" \
+$],
+caption: "Abstract semantic of variable initialization"
+)
 We also add a special instruction `InitVariable(var)` that takes a variable and return the same
 context where the variable in argument is now initialized.
 
@@ -418,13 +429,11 @@ Inside abstract interpretation these values can be interpret has :
 - $Init.init$ for all path the variable is initialized
 - $Init.inot$ for all path the variable is not initialized
 
-We also defined $gamma(v) = {top_("typeof"(v))} $.
+We also defined the concretization function $gamma_#init_domain$ such that $gamma_#init_domain (v) = {top_("typeof"(v))} $.
 
-$Init.maybe$ help to continue the analysis without the knowledge that there exist a path were the varible
-is initialized.
 
-This is a value abstract domain. So we can implement it in Mopsa and have a correct
-abstract interpretation of the initialisation of scalar variables.
+This is a value abstract domain. So by the property 2.5 of @mopsa-phd, MOPSA built a
+non-relationnal abstract semantics, that is a sound abstraction of the concrete semantics.
 
 = Initialisation of arrays <init-array>
 
@@ -491,6 +500,7 @@ jasmin deal.
 
 === Representation
 
+#let arr_domain = "Arr"
 
 #figure(
   [
@@ -580,8 +590,10 @@ we didn't take the value between them, otherwise if the interval $[|i;i + "len"|
 overlapp with the interval created by the two bounds, we keep the argument. 
 At the end, we doing the union of all segment we keep.
 
-So in maths way we have :
-$gamma(a[i]) = join_(j in [|0;2|] and gamma(i) meet gamma([b_j;b_(j+1)]) != emptyset) gamma(s_j) $
+So we have :
+$
+semExprA(a[i]) = union.big_(j in [|0;2|])^hash (semExprA(s_(i+1)) circle.small semCondA(b_j <= i <= b_(j+1)))
+$
 
 
 === Example
@@ -646,6 +658,7 @@ in this case for the moment we send $top$ value in numerical domains, to be sure
   ]
 
 === Soundness
+
 
 
 = Contract and function call <contract>
