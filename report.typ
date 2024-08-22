@@ -293,7 +293,7 @@ MOPSA work with Domain, a domain, named a composable domain
   - a widening operator $widen$
   - a partial expression and statement transfer functions, operating on the global abstraction 
     state $Sigma^hash$. The global abstraction state $Sigma^hash$ corresponds to inhabitants of the type
-    'a in the domain signature of Listing 3.7. The star is used to denote a list (i.e., a case
+    'a in the domain signature of @domain-mopsa-ocaml. The star is used to denote a list (i.e., a case
     disjunction), potentially empty (meaning that this domain does not handle this case).
     $semExprA("expr" in Epsilon,domain: D^hash)$, $semStmtA("stmt" in S, domain: D^hash)$
   - Concrete input and output states of the abstract domain, written $D^"in"$ and $D^"out"$
@@ -346,12 +346,12 @@ $
 $ 
 
 $
-  semStmt(s_1\; ...\;  s_n) = semStmt(s_n) circle ... circle semStmt(s_1) \
-  semStmt("if" c {s_t} "else" {s_f}) = semStmt(s_t) circle semCond(c) join semStmt(s_f) circle semCond(not c) \
+  semStmt(s_1\; ...\;  s_n) = semStmt(s_n) compose ... compose semStmt(s_1) \
+  semStmt("if" c {s_t} "else" {s_f}) = semStmt(s_t) compose semCond(c) join semStmt(s_f) compose semCond(not c) \
   semStmt( x = e)Sigma = {sigma[x <- v] | sigma in Sigma, v in semExpr(e)sigma} \
   semStmt("for" v = c_1 "to" c_2 { s }) = semStmt(v = c_1\; "while" v < s { s; v = v + 1;}) \
   semStmt("while" c { s_1 } (s_2)) = semStmt( s_2 \; "while" c { s_1 \; s_2 } ) \
-  semStmt("while" c { s_1 })Sigma = semCond(not c) ( union.big_(n in NN) (semStmt(s) circle.small semCond(c))^n Sigma)
+  semStmt("while" c { s_1 })Sigma = semCond(not c) ( union.big_(n in NN) (semStmt(s) compose semCond(c))^n Sigma)
 $
 In Jasmin, a function only have one `return` statement, at the end of the function.
 
@@ -361,12 +361,12 @@ In particular for while loops, we didn't try to calculate the fixpoint of each p
 widening operator (defined in @widening)
 
 $
-  semStmtA(s_1\; ...\;  s_n) = semStmtA(s_n) circle ... circle semStmtA(s_1) \
-  semStmtA("if" c {s_t} "else" {s_f}) = semStmtA(s_t) circle semCondA(c) join semStmtA(s_f) circle semCondA(not c) \
+  semStmtA(s_1\; ...\;  s_n) = semStmtA(s_n) compose ... compose semStmtA(s_1) \
+  semStmtA("if" c {s_t} "else" {s_f}) = semStmtA(s_t) compose semCondA(c) join semStmtA(s_f) compose semCondA(not c) \
   semStmtA( x = e)Sigma = {sigma[x <- v] | sigma in Sigma, v in semExprA(e)sigma} \
   semStmtA("for" v = c_1 "to" c_2 { s }) = semStmtA(v = c_1\; "while" v < s { s; v = v + 1;}) \
   semStmtA("while" c { s_1 } (s_2)) = semStmtA( s_2 \; "while" c { s_1 \; s_2 } ) \
-  semStmtA("while" c { s_1 })sigma^hash = semCondA(not c) lim delta^n (bot) "with" delta(x^hash) = x^hash widen (sigma^hash union.sq^hash semCondA(s) circle.small semCondA(c) x^hash)
+  semStmtA("while" c { s_1 })sigma^hash = semCondA(not c) lim delta^n (bot) "with" delta(x^hash) = x^hash widen (sigma^hash union.sq^hash semCondA(s) compose semCondA(c) x^hash)
 $
 
 
@@ -611,7 +611,7 @@ At the end, we doing the union of all segment we keep.
 
 So we have :
 $
-semExprA(a[i]) = union.big_(j in [|0;2|])^hash (semExprA(s_(i+1)) circle.small semCondA(b_j <= i <= b_(j+1)))
+semExprA(a[i]) = union.big_(j in [|0;2|])^hash (semExprA(s_(i+1)) compose semCondA(b_j <= i <= b_(j+1)))
 $
 
 
@@ -940,4 +940,4 @@ sig
 end
 ```,
 caption: [Domain signature of MOPSA, section comment refer to sections of @mopsa-phd ]
-)
+)<domain-mopsa-ocaml>
