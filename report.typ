@@ -237,7 +237,6 @@ fn f(reg u64 x)
     edge(<else>,<end>,"-|>" ),
     node((0.5,1.5),$join$,stroke : none),
   )],
-  caption: "Hass diagram of Init poset"
   )<hass-diagram-init>
 ]]
 )
@@ -256,15 +255,12 @@ is correct even if it detects a bug that didn't exist, but it is incorrect if it
 ]
 
 
-
-
 == Widening <widening>
 
-
 The widening operator was initially introduced in a Cousot's Cousot's paper @cousot-lattice. 
-The widening is the new feature that significantly improves the performance of the safety checker. 
-
-The principle of the widening is to find a stable state that is sound without unrolling loops.
+The widening operator was defined to find a fixpoint in the approximation of while loops, like it's
+impossible to compute the fixpoint of all loops with the guaratee that this calcul terminate. 
+The semantic of while loop is given in @sem-stat.
 
 #def("widening")[
   A binary operator $widen$ is defined by
@@ -276,14 +272,6 @@ The principle of the widening is to find a stable state that is sound without un
 
 The 3rd condition of the widening operator is important to guarantee that the analysis will finish, but this does not 
 permit us to conclude that the loop can finish, unless the index used in the loop is bounded.
-
-
-```jasmin
-while i < 5 {
-  i += 1;
-}
-```
-
 
 
 = Overview of MOPSA <overview-mopsa>
@@ -317,8 +305,9 @@ To have a correct abstract interpretation with MOPSA, we only need to provide a 
 
 
 
-== Semantic of statements
+== Semantic of statements <sem-stat>
 
+=== Semantic of Jasmin
 We write $semExpr(e) : S -> P(ZZ)$ the semantic of an expression e.
 Variables are evaluate in a context $sigma$. 
 
@@ -345,7 +334,10 @@ $
   semStmt("while" c { s_1 } (s_2)) = semStmt( s_2 \; "while" c { s_1 \; s_2 } ) \
   semStmt("while" c { s_1 })Sigma = semCond(not c) ( union.big_(n in NN) (semStmt(s) circle.small semCond(c))^n Sigma)
 $
+In Jasmin, a function only have one `return` statement, at the end of the function.
 
+=== Semantic of Jasmin Abstraction
+Like it's not possible to calculate the exact semantic of jasmin, we calculate an overapproximation of states.
 $
   semStmtA(s_1\; ...\;  s_n) = semStmtA(s_n) circle ... circle semStmtA(s_1) \
   semStmtA("if" c {s_t} "else" {s_f}) = semStmtA(s_t) circle semCondA(c) join semStmtA(s_f) circle semCondA(not c) \
@@ -354,7 +346,6 @@ $
   semStmtA("while" c { s_1 } (s_2)) = semStmtA( s_2 \; "while" c { s_1 \; s_2 } ) \
   semStmtA("while" c { s_1 })Sigma = semCondA(not c) lim delta^n (bot) "with" delta(x^hash) = x^hash widen (sigma^hash union.sq^hash semCondA(s) circle.small semCondA(c) x^hash)
 $
-In Jasmin, a function only have one `return` statement, at the end of the function.
 
 But calculate all theses states takes to many times, so we abstract them.
 
