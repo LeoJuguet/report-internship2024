@@ -1,6 +1,6 @@
 fn _poly_ntt(reg ptr u16[KYBER_N] rp) -> reg ptr u16[KYBER_N]
-requires {init_array(0,0,KYBER_N)}
-ensures {assigns_array(0,0,KYBER_N)}
+requires {init_array(0,0,KYBER_N)} // pre condition, rp is well initialized
+ensures {assigns_array(0,0,KYBER_N)} // post condition, rp is well initialized
 {
   reg u64 len;  
   reg u64 start;

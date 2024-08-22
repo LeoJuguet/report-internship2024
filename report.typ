@@ -766,7 +766,8 @@ To give an idea of the performance of the new safety checker, we tried it on the
 With the old safety checker, the analysis of the function took `30 seconds`, this is now possible in less than `3 seconds`.
 However, in both cases with the widening, we are only able to prove that the array is well-initialized (because it is well-initialized before). 
 Due to the upper bound approximation of scalars in the loop for the widening, we are not able to prove that there is no out-of-bounds access.
-If we unroll the loop, we are able to prove that the array is well-initialized and there is no out-of-bounds access, 
+If we unroll the loop, we are able to prove that the array is well-initialized and there is no out-of-bounds access and the loop terminated (like the
+analysis terminate with loop unrolling), 
 this takes `45 seconds` with the new safety checker. With the older safety checker, after `3 hours`, the analysis was not finished.
 In another file with 6 different functions #footnote([#link("https://github.com/LeoJuguet/jasmin/blob/cryptoline-mopsa/compiler/jasa/tests/test_poly.jazz")]), 
 the analysis takes around `0.430s` for the new checker to be analyzed, and around `6.37s` for the previous checker. 
@@ -847,9 +848,16 @@ So for a function simple like that the difference is important.
 
 == Ntt function <ntt-function>
 
-
+#figure(
+[
 #raw(read( "ntt.jazz"), block: true, lang: "jasmin")
-
+], caption: [ `ntt` function used for the performance test in @perf,
+  the difficulty to prove this function come from nested loop and the difficulty to
+  the numerical domain to determine the relation betwen `len`, `start` and `j`, with the
+  shift of `len`, so out of bounds
+  access is detected without loop unrolling.
+] 
+)
 
 
 == Details of performances test <details-performances-test>
@@ -878,3 +886,58 @@ Before running this test, we verified that all functions were marked for export.
 
 To test unrolling with the old safety checker, we generated a config file with `-safetymakeconfigdoc` and 
 modified the `k_unroll` argument to `10000`, which simulates a large amount of loop unrolling.
+
+
+
+= Mopsa implementation
+
+#figure(
+```ocaml
+(* Section 3.3.2.2 *)
+type ('a, 't) man = {
+  get : 'a -> 't;
+  set : 't -> 'a -> 'a;
+
+  lattice : 'a lattice;
+
+  exec : stmt -> 'a flow -> 'a post;
+  eval : expr -> 'a flow -> 'a eval;
+
+  ask : ('a,'r) query -> 'a flow -> 'r;
+  print_expr : 'a flow -> (printer -> expr -> unit);
+  get_effects : teffect -> teffect;
+  set_effects : teffect -> teffect -> teffect;
+}
+
+ (* Section 3.3.2.4 *)
+type 'a post = ('a, unit) cases
+type 'a eval = ('a, expr) cases
+
+module type DOMAIN =
+sig
+ (* Section 3.3.2.1 *)
+  type t
+  val id : t id
+  val name : string
+  val bottom: t
+  val top: t
+  val is_bottom: t -> bool
+  val subset: t -> t -> bool
+  val join: t -> t -> t
+  val meet: t -> t -> t
+  val widen: 'a ctx -> t -> t -> t
+
+  (* Section 3.3.2.5 *)
+  val init : program -> ('a, t) man -> 'a flow -> 'a flow
+  val exec : stmt -> ('a, t) man -> 'a flow -> 'a post option
+  val eval : expr -> ('a, t) man -> 'a flow -> 'a eval option
+
+  (* Section 3.3.2.6 *)
+  val merge: t -> t * effect -> t * effect -> t
+  val ask : ('a,'r) query -> ('a, t) man -> 'a flow -> 'r option
+  val print_state : printer -> t -> unit
+  val print_expr : ('a,t) man -> 'a flow -> printer -> expr -> unit
+end
+```,
+caption: [Domain signature of MOPSA, section comment refer to sections of @mopsa-phd ]
+)
