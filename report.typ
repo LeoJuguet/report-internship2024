@@ -164,7 +164,7 @@ Jasmin has a low-level approach, with a syntax that is a mix between assembly, C
 - inline integers that are not saved somewhere but directly written in the source code when the compiler unrolls the loop
 - words of size with the size in ${8,16,32,64,128,256}$
 - arrays of words of fixed length at compile time
-- pointers that point to a memory space
+- reg variables that can hold addresses
 
 The user has to specify if a variable has to be in a register or on the stack. But this will not affect the safety analysis.
 
@@ -206,17 +206,37 @@ Abstract interpretation was formalized by Patrick Cousot and Radhia Cousot @cous
 value, such that all possible values in a normal execution are included in the concretization of the abstract value.
 
 
+A perfect abstract interpretation would calculate the exact set of possible states of a program during or at the end of the interpretation. 
+However, it is generally impossible to calculate such a set. Therefore, we compute an approximation. To do this, we define a poset over the set 
+of possible states of a program, and we say that the abstraction is sound, meaning it is a correct approximation, if it is possible to derive an 
+upper set of possible states of the program from the abstraction.
+
 #def("Poset")[
   A poset or partial order set is a couple $(X, subset.sq)$ with $X$ a set and $subset.sq in X times X$ a relation reflexive,
   anti-symmetric and transitive
 ]
+
+
 
 #def("Sound abstraction")[
   Let $A$ be a set $(C,subset.eq)$ a poset, and $gamma in A -> C$ the concretisation function. 
   $a$ is a sound abstraction of $c$ if $c subset.eq gamma(a)$
 ]
 
+Intuitively, the abstraction calculates an overbound of the real possible values. The abstraction 
+is correct even if it detects a bug that didn't exist, but it is incorrect if it fails to detect a bug that does exist.
 
+The notion of sound abstraction can also be extends to function.
+
+#def("Sound abstraction operator")[
+  Let $A$ be a set $(C,subset.eq)$ a poset, and $gamma in A -> C$ the concretisation function. 
+  $f^hash in A -> A$ is a sound abstraction of $f in C -> C$ if
+  $forall a in A, f(gamma(a)) subset.eq gamma(f^hash (a))$
+]
+
+
+
+#figure([
 #grid(
 columns: (30%,70%),
 [
@@ -239,32 +259,35 @@ fn f(reg u64 x)
   
   [#diagram(
     node-stroke: 1pt,
-    node((0.5,0), [$ a = Init.inot, x = Init.init$], name: <init>),
+    node((0.5,0), [$ a = top, x = top$], name: <init>),
     edge("-|>",[then]),
-    node((0,1), [$ a = Init.init, x = Init.init, x > 0$], name: <then>),
-    node((1,1), [$ a = Init.init, x = Init.init, x <= 0$], name: <else>),
+    node((0,1), [$ a = 5, x  > 0$], name: <then>),
+    node((1,1), [$ a = 7, x  <= 0$], name: <else>),
     edge(<init>,<else>,"-|>" ,[else]),
-    node((0.5,2), [$ a = Init.init, x = Init.init$], name:<end>),
+    node((0.5,2), [$ a = [5;7], x = top$], name:<end>),
     edge(<then>,<end>,"-|>" ),
     edge(<else>,<end>,"-|>" ),
     node((0.5,1.5),$join$,stroke : none),
   )],
   )<hass-diagram-init>
 ]]
-)
-#def("Sound abstraction")[
-  Let $A$ be a set $(C,subset.eq)$ a poset, and $gamma in A -> C$ the concretisation function. 
-  $a$ is a sound abstraction of $c$ if $c subset.eq gamma(a)$
-]
+)],
+caption: [ Example of abstraction of a program]
+)<example-abstraction>
 
-Intuitively, the abstraction calculates an overbound of the real possible values. The abstraction 
-is correct even if it detects a bug that didn't exist, but it is incorrect if it fails to detect a bug that does exist.
+For example in @example-abstraction, first we abstract $a$ and $x$ by $top$ value, that represent the full range of possible values,
+when we execute the `then` branch we have the approximation that $x > 0$ and that $a = 5$, but in the `else` branch we have that $x <= 0$ and $a = 7$.
+At the end we join the two branch, to limit the number of different abstract state that we have, and the approximation give tha $a$ is in $[5;7]$ and $x$ can
+take all values. This is an overapproximation because $a = 6$ is impossible with the code of the example.
 
-#def("Sound abstraction operator")[
-  Let $A$ be a set $(C,subset.eq)$ a poset, and $gamma in A -> C$ the concretisation function. 
-  $f^hash in A -> A$ is a sound abstraction of $f in C -> C$ if
-  $forall a in A, f(gamma(a)) subset.eq gamma(f^hash (a))$
-]
+For example, in @example-abstraction, we first abstract $ a $ and $ x $ with the $ top $ value, 
+which represents the full range of possible values. When we execute the `then` branch, we have the approximation that 
+$ x > 0 $ and $ a = 5 $. However, in the `else` branch, we have $ x <= 0 $ and $ a = 7 $.
+
+At the end, we join the two branches to limit the number of different abstract states we have, 
+and the approximation gives that $ a $ is in the range $[5; 7]$ while $ x $ can take all values. 
+This is an overapproximation of the possible states, because $ a = 6 $ is impossible with the code in the example.
+
 
 
 == Widening <widening>
@@ -588,17 +611,6 @@ with a fixed number of partition at 3.
 
 #let arr_domain = "Arr"
 
-#figure(
-  [
-    #grid(
-      columns: (20%,60%,20%),
-      stroke: black,
-      inset: 1em,
-      $s_1$, $s_2$,$s_3$
-    )
-  ],
-  caption : [Representation of an array]
-)<repr-array>
 
 We suppose that we have a numerical domain, if possible a relational domain, $D^hash_"num"$ 
 and a domain that represents initialization $D^hash_"init"$ 
@@ -621,6 +633,26 @@ $
   b_3 = "len"(a),
   s_1 = s_2 = s_3 = top "and not init"
 $
+
+#figure(
+  [
+  #box(
+    stroke:black,
+    inset: 3em,
+  )[
+    #grid(
+      columns: (20%,60%,20%),
+      stroke: black,
+      inset: 1em,
+      $s_1$, $s_2$,$s_3$
+    )
+    #grid(
+      columns: (9%,11%,1%,59%,1%,13%,15%),
+      $b_0=0$,$$, $b_1$,$$, $b_2$,$$, $b_3=len(a)$ 
+    )]
+  ],
+  caption : [Representation of an array]
+)<repr-array>
 
 This method is pretty simple to implement in mopsa. The only case that you need to deal is when you want get a result or when we want assign a 
 value.
@@ -716,7 +748,10 @@ The only detail is that in Jasmin, we can cast an array to an array of the same 
 and avoid dealing with integer representation.
   ]
 
-=== Soundness
+=== Concretization
+
+We defined the concretisation function by : $gamma_#arr_domain (a[i])= gamma(semExprA(a[i]))$, with the $join$, we lose in precision
+bu we are sure that all possible value is present.
 
 
 
