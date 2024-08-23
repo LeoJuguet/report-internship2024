@@ -81,7 +81,7 @@
 
 // Truc
 #let title = [
-  Jasa : The new Jasmin Safety Analyser write with MOPSA
+  Jasa : The new Jasmin Safety Analyser based on MOPSA
 ]
 
 #set text(11pt)
@@ -105,7 +105,8 @@
   We have written a new safety checker for Jasmin, a programming language for high-assurance and high-speed 
   cryptographic code implementation. The safety checker detects initialization of scalars, initialization of 
   arrays to a certain extent, and access out of bounds without unrolling loops using widening. This new safety 
-  checker is mostly based on the MOPSA library. This new safety checker is undoubtedly faster than the previous one.
+  checker is mostly based on the MOPSA library. It's is undoubtedly faster than the previous one,
+  with the support of function contract and the possibility to do a modular analysis.
   This new safety checker, created with MOPSA, also opens up the possibility to check more properties than the previous 
   safety checker, with the ability to analyze the values.
 ]
@@ -116,18 +117,25 @@
 
 Jasmin @jasmin is a programming language that aims to be secure, particularly for cryptographic code.
 The compiler is written in Coq and provides a proof that the code will be correctly translated to assembly, under certain assumptions.
-These assumptions are checked by a static analyzer, but the previous one was too slow.
-The goal of this internship was to create a new, more efficient static analyzer that would be able to check that the conditions on a Jasmin code are well-present.
+These assumptions are checked by a safety checker, but the previous one was too slow, and not precise has we want. Moreover
+the safetychecker is today hard to maintain, and didn't allow modular analysis.
+The goal of this internship was to create a new, more efficient, more maintanable, and more precise
+ safety analyzer that would be able to check that the conditions on a Jasmin code are well-present.
 
-For this, I used MOPSA, a static analyzer library that aims to be modular, in order to easily add a frontend for the Jasmin language.
+For this, I used MOPSA, a static analyzer library that aims to be modular, in order to easily add a frontend for the Jasmin language, and
+a more maintable code with the relying to a third party library for the maintening of the backend of the abstract interpretation.
 
 = Context
 
-Writing a secure program is hard, there are many considerations to take care of, such as ensuring that a variable 
-is well-defined and that there are no out-of-bounds accesses.
+Writing a secure program is hard, there are many considerations to take care of, and often small mistakes are
+added unvolountary by the programer, such as ensuring that a variable 
+is well-defined and that there are no out-of-bounds accesses, otherwise this can lead to
+write at a unsafe location and lead to a leakage of information. So a tool is needed to ensure that no mistakes are present.
 
 In Jasmin, a safety analyzer already exists, but there is a main problems:
-The current implementation is to slow for big programs.
+The current implementation is to slow for big programs, it's impossible to run an analysis on an independent function without
+inlining other functions.
+Moreover the safety checker also ask to maintain a backend to be able to do abstract interpretation.
 
 The main goal of this internship was to explore MOPSA to see if it could be used to replace the old safety checker.
 
@@ -148,8 +156,7 @@ Jasmin is a programming language for writing high-assurance and high-speed crypt
 The compiler is mostly written and verified in Coq, and except for the parser, the other code written in OCaml is also verified in Coq @jasmin.
 Jasmin has some tools to translate a Jasmin program to EasyCrypt or CryptoLine to allow developers to prove that their code is correct. 
 However, this translation and the compilation are correct only if the safety properties are verified.
-The safety properties are checked by a safety checker. However, the current safety checker is too slow if we want to 
-analyze a significant program.
+The safety properties are checked by a safety checker.
 
 Jasmin has a low-level approach, with a syntax that is a mix between assembly, C, and Rust. Jasmin has 3 types:
 
@@ -159,7 +166,7 @@ Jasmin has a low-level approach, with a syntax that is a mix between assembly, C
 - arrays of words of fixed length at compile time
 - pointers that point to a memory space
 
-The user has to specify if a variable has to be in a register or on the stack. But this will not affect the static analysis.
+The user has to specify if a variable has to be in a register or on the stack. But this will not affect the safety analysis.
 
 A Jasmin program is a collection of:
 
@@ -177,15 +184,31 @@ The safety properties of a Jasmin program are :
 - all return scalars are well initialized
 - there is no out-of-bounds access for arrays
 - there is no division by zero
+- arithmetic operations are valid
+- alignment of memory accesses
+- reading/writing a valid memory region
+- termination
+]
+
+But we only target to check a part of theses properties, because some part are prove by the compiler, like alignement 
+
+#def("Safety properties")[
+The safety properties of a Jasmin program are :
+- all scalar arguments are well initialized
+- all return scalars are well initialized
+- there is no out-of-bounds access for arrays
+- there is no division by zero
+- arithmetic operations are valid
 ]
 
 In the following report, we will not talk about division by zero, even if a prototype of division by zero detection is implemented, 
 because Jasmin is focused on cryptography code, and in particular constant-time programs. Division operations are not used 
-because they are not constant-time operatorsa.
+because they are not constant-time operator.
+
+
 = Overview of Abstract Interpretation <abstract-interpretation>
 
-> *Note* : this part and @overview-mopsa are mostly a resume of @mopsa-phd, it only resume for the comprehension and small details to fit
-with Jasmin. For proof and more details, please refer to this document.
+> *Note* : this part and @overview-mopsa are mostly a summary of @mopsa-phd. For proof and more details, please refer to this document.
 
 Abstract interpretation is a technique in the field of static analysis of programs. It analyzes a program by an upper approximation way, 
 without having to execute the program.
@@ -281,9 +304,11 @@ that develops a tool in OCaml of the same name. The goal is to create static ana
 on abstract domains modularity.
 
 
-(* TODO: Insert an image to represent MOPSA *)
 
-MOPSA work with Domain, a domain, named a composable domain
+MOPSA work with Domain, named composable abstract domain in @mopsa-phd.
+Theses domain, handle an abstract representation of things they want abstract (e.g. an interval of value, or the initialization
+states). Theses domain also take a partial expression and statement transfert function, that indicate who some instruction
+modify the abstract representation (e.g `a = a + 2` has for effect to add 2 to the interval representation of `a`).
 
 #def("Composable abstract domain")[
   A value abstract domain is :
@@ -301,14 +326,66 @@ MOPSA work with Domain, a domain, named a composable domain
 ]
 
 
+In a configuration file, the programmer defines how different domains coexist. 
+When composing a domain, the system takes the first domain that can handle a given expression or statement.
 
-In MOPSA, to register a new abstraction, the developer only needs to register a Domain.
+The @figure-mopsa-domains representation illustrates a simplified configuration. 
+The red domains are defined specifically for Jasmin. The blue domains are defined by Mopsa for his universal language. 
+Some domains only translate Jasmin statements into equivalent 
+statements in the universal language offered by Mopsa, like the loop domain that translates Jasmin's while and 
+for loops into a while loop of the universal language.
 
-MOPSA performs an induction on the syntax.
+Other domains, like array initialization, provide a special abstraction for Jasmin, in this case to handle 
+the initialization of arrays (@init-array). In this simple example, the system first tries to see if the 
+intraproc domain from the Jasmin frontend can handle the current expression or statement. If so, that domain 
+will handle the case. Otherwise, the system checks the following domains.
 
-MOPSA offers different domains that are already implemented for a universal language, and these domains can be easily used by another target language.
+Some cases will try to execute two different domains, like array out-of-bounds and array initialization, 
+where one domain checks for out-of-bounds access and the other checks and modifies the abstraction to determine 
+if an array is properly initialized. A domain can call other domains.
 
-To have a correct abstract interpretation with MOPSA, we only need to provide a domain of the appropriate form.
+For example, if we have `a = b[i]`, the domains that handle integer assignments will ask for the value of the 
+expression `b[i]`, and the same mechanism described before will be used to find the right domains (`array init` to have the value and
+`arr-out` to check that there is no error).
+
+
+#figure(
+  [
+   #diagram(
+    node-stroke: 1pt,
+    spacing: 1em,
+    node((0,0),text(red)[jasmin],stroke: 0pt),
+    node((0.5,0),"intraproc", name:<intraproc>),
+    node((0.5,1),"interproc", name:<interproc>),
+    node((0.5,2),"loop", name:<loop>),
+    node((0,3),"array out-of-bounds", name:<arr-out>),
+    node((1,3),"array initialization", name:<arr-init>),
+    node((0,5),text(blue)[Universal],stroke: 0pt),
+    node((0.5,5),"intraproc", name:<intraproc-mopsa>),
+    node((0.5,6),"loop", name:<loop-mopsa>),
+    edge(<intraproc>,<interproc>, "-|>"),
+    edge(<interproc>,<loop>, "-|>"),
+    edge(<loop>,<arr-out>, "-|>"),
+    edge(<loop>,<arr-init>, "-|>"),
+    edge(<arr-init>,<intraproc-mopsa>, "-|>"),
+    edge(<arr-out>,<intraproc-mopsa>, "-|>"),
+    edge(<intraproc-mopsa>,<loop-mopsa>, "-|>"),
+    {
+      let tint(c) = (stroke: c, fill: rgb(..c.components().slice(0,3), 5%), inset: 10pt)
+      node(enclose: ((-1.5,-0.5),(1,3) ), ..tint(red))
+      node(enclose: ((0,5),(1.5,6.5) ), ..tint(blue))
+    },
+  ) 
+  ],
+  caption: "Simplified domain configuration"
+)<figure-mopsa-domains>
+
+
+This way of handle abstraction, offer a simple way for the developer to add abstraction, the developer only
+have to extends the AST of Mopsa to translate his language to the MOPSA AST, that is simple with Ocaml extensible types,
+and after the developer only defined new domain to handle new AST cases that he has add. Moreover MOPSA also give the possibility
+to give a reduce domain, to avoid the deloper redo things already well defined, like the `Value abstract domain` that permit to not
+reimplement a full domain. This value abstract domain was used for analyze the initialization of scalar variable (@section-init-scalar).
 
 #def("Value abstract domain")[
   A value abstract domain is :
@@ -356,9 +433,9 @@ $
 In Jasmin, a function only have one `return` statement, at the end of the function.
 
 === Semantic of Jasmin Abstraction
-Like it's not possible to calculate the exact semantic of jasmin, we calculate an overapproximation of states.
+Because it's not possible to calculate the exact semantic of jasmin, we calculate an overapproximation of states.
 In particular for while loops, we didn't try to calculate the fixpoint of each possible iteration, but we use the 
-widening operator (defined in @widening)
+widening operator (defined in @widening), we add a $hash$ in exponent to mark that the calcul is in the abstraction.
 
 $
   semStmtA(s_1\; ...\;  s_n) = semStmtA(s_n) compose ... compose semStmtA(s_1) \
@@ -373,7 +450,6 @@ $
 
 To have a better approximation of loops, Mopsa, always unroll the first iteration of the loop.
 
-But calculate all theses states takes to many times, so we abstract them.
 
 These statments are classic in abstract interpration so Mopsa, already have domain that handle theses statments.
 
@@ -389,11 +465,25 @@ Mopsa offer different default domain :
 - numerical domains : in particular interval domains and relational domains.
 - iterators domains in universal language to manipulate principal statements.
 
-= Initialisation of scalar
+= Initialisation of scalar <section-init-scalar>
 
 In Jasmin, all scalar arguments or return values of a function have to be initialized.
 Moreover, a variable is well-initialized if it is assigned to a well-initialized expression. 
-A well-initialized expression is defined according to the following abstract value domain @poset-init-domain.
+A well-initialized expression is defined according to the @concrete-semantic-init.
+
+
+#figure(
+[
+$
+  semExpr(a star b) = cases("if" semExpr(a) = Init.init and semExpr(b) = Init.init "then" Init.init, "else" Init.inot) "whith" star in { + , - , * , \/ , %} \
+  semExpr(circle.filled.small a) = semExpr( a )  "whith" circle.filled.small in { + , - } \
+  semExpr(c) = Init.init "with" c "a constant" \
+  semStmt( v = e)Sigma = { sigma{ v <- i} | sigma in Sigma, i in semExpr(e)sigma}
+$]
+, caption: "concrete semantic of variable initialization"
+)<concrete-semantic-init>
+
+We defined a slighty modify value abstract domain, where we add a $Init.maybe$ value, to be able to have a more precise abstraction.
 
 #figure(
 diagram(
@@ -412,18 +502,6 @@ diagram(
 
 The $bot$ value of this abstraction is never reached, and is only present to have a lattice.
 $Init.maybe$ play the role of $top$.
-
-#figure(
-[
-$
-  semExpr(a star b) = cases("if" semExpr(a) = Init.init and semExpr(b) = Init.init "then" Init.init, "else" Init.inot) "whith" star in { + , - , * , \/ , %} \
-  semExpr(circle.filled.small a) = semExpr( a )  "whith" circle.filled.small in { + , - } \
-  semExpr(c) = Init.init "with" c "a constant" \
-  semStmt( v = e)Sigma = { sigma{ v <- i} | sigma in Sigma, i in semExpr(e)sigma}
-$]
-, caption: "concrete semantic of variable initialization"
-)
-
 #let init_domain = "Init"
 #figure(
 [
@@ -777,12 +855,16 @@ the analysis takes around `0.430s` for the new checker to be analyzed, and aroun
 The final implementation for the arrays feature counts around 3,000 lines of code. The previous safety checker that performed more checks has 7,000 lines of code. 
 However, around 1,000 lines of code in the new safety checker are for extending the MOPSA AST and translating the Jasmin AST to MOPSA.
 
-= Future
+= Conclusion and future work
 
-This new safety checker, written with MOPSA, is faster than the previous one, and the way MOPSA is built provides 
-some ideas to add more checks inside the safety checker. However, implementing the support of basic memory will be 
-necessary to support a larger proportion of Jasmin programs. But without a doubt, it is possible to implement this with MOPSA,
- without significant loss in speed.
+This new safety checker, written with MOPSA, check that scalar variable are well initialized, the array access are in bounds,
+and successfuly check is array are well initialized, when there are initialized from one border to the middle. Moreover
+the support of contract allow to check function independently, and check to check property, like the initialization of array.
+Futhermore, with the modularity of Mopsa, the code is simple to extend and maintain.
+This implementation is also faster than the previous one, and the way MOPSA is built provides 
+some ideas to add more checks inside the safety checker. 
+However, implementing the support of basic memory will be necessary to support a larger proportion of Jasmin programs. 
+But without a doubt, it is possible to implement this with MOPSA, without significant loss in speed.
 
 It seems that with MOPSA, it is possible to handle more checks on values, such as verifying if an array is initialized with only 0s.
 
@@ -793,25 +875,18 @@ Other tasks need to be completed to finish the prototype and move towards a more
 
 In Jasmin, it is possible to call a CPU instruction and get the result and flags, which depend on the target CPU. 
 For now, the output is the top value and initialized for scalar values, but an approach similar to function calls will be possible, with specific cases handled.
-
 Similar things can also be done for system calls, which are not yet handled.
 
-
-= Conclusion
-
-The new safety checker written with MOPSA is faster than the previous one and offers the possibility of carrying out more checks in the future.
-Futhermore, Mopsa's modularity means that the code is more readable, faster and easier to add options to. For the moment, 
-the checker correctly checks variable initialisation, array initialisation in most cases and out-of-bounds accesses. 
-In addition, it's modular and works using a contract system. But MOPSA, offer after a time of adaptation to understant who
-each domains live together a simple and easy way to add more domains for specific analysis.
+For a more advance future, it's also plan to be able to communicate to EasyCrypt which properties already has been proved by the safety checker, to have
+a workflow in the future, where developer run the safety checker and prove after in EasyCrypt part that have not been yet proved.
 
 = Acknowledgements
 
 
-Thank you to the MPI-SP and the Groupe de Gilles for hosting me during this course.
+Thank you to the MPI-SP and the Gilles's Group for hosting me during this interniship.
 Thanks to Manuel Barbosa for his supervision and to Benjamin Grégoire, Vincent Laporte and Lionel Blatter 
 for following the project and answering questions about Jasmin.
-Thanks to Raphael Monat from the MOPSA team for taking the time to answer my questions about abstract interpretation 
+Thanks to Raphaël Monat from the MOPSA team for taking the time to answer my questions about abstract interpretation 
 and MOPSA and for monitoring the project.
 
 
