@@ -178,6 +178,9 @@ The control flow of a Jasmin program is simple, with blocks, if statements, for 
 
 == Safety
 
+In Jasmin, safety is formally defined as "having a well-defined semantics", as specified in Coq. 
+A function is deemed safe if it can reach a final memory state and result values such that executing 
+the function from the initial state successfully terminates in that final state. The properties that must be verified include the following:
 
 
 #def("Safety properties")[
@@ -190,10 +193,19 @@ The safety properties of a Jasmin program are :
 - alignment of memory access
 ]
 
+Out-of-bounds access is a common condition in software verification, as it helps prevent writing to unauthorized memory locations and avoids information leaks. 
+Checking for division by zero is also crucial to ensure that the program does not crash. Memory access alignment is required by certain architectures and 
+can enhance execution speed.
+
+Termination is important, especially in cryptographic programs, as most of them need to execute in constant time. Scalars must be initialized to ensure 
+that they are properly represented in the generated assembly code.
+
+
+
 In the following report, we will not talk about division by zero, even if a prototype of division by zero detection is implemented, 
 because Jasmin is focused on cryptography code, and in particular constant-time programs. Division operations are not used 
 because they are not constant-time operator.
-
+We will focus on the initialization of scalars and arrays, as well as out-of-bounds access to arrays
 
 = Overview of Abstract Interpretation <abstract-interpretation>
 
@@ -280,13 +292,13 @@ when we execute the `then` branch we have the approximation that $x > 0$ and tha
 At the end we join the two branch, to limit the number of different abstract state that we have, and the approximation give tha $a$ is in $[5;7]$ and $x$ can
 take all values. This is an overapproximation because $a = 6$ is impossible with the code of the example.
 
-For example, in @example-abstraction, we first abstract $ a $ and $ x $ with the $ top $ value, 
+For example, in @example-abstraction, we first abstract $a$ and $x$ with the $top$ value, 
 which represents the full range of possible values. When we execute the `then` branch, we have the approximation that 
-$ x > 0 $ and $ a = 5 $. However, in the `else` branch, we have $ x <= 0 $ and $ a = 7 $.
+$x > 0$ and $a = 5$. However, in the `else` branch, we have $x <= 0$ and $a = 7$.
 
 At the end, we join the two branches to limit the number of different abstract states we have, 
-and the approximation gives that $ a $ is in the range $[5; 7]$ while $ x $ can take all values. 
-This is an overapproximation of the possible states, because $ a = 6 $ is impossible with the code in the example.
+and the approximation gives that $a$ is in the range $[5; 7]$ while $x$ can take all values. 
+This is an overapproximation of the possible states, because $a = 6$ is impossible with the code in the example.
 
 
 
@@ -329,10 +341,7 @@ modify the abstract representation (e.g. `a = a + 2` has the effect of adding 2 
   - Sound abstractions of set union and intersection $union.sq.big^hash, meet.big.sq^hash$
   - a widening operator $widen$
   - a partial expression and statement transfer functions, operating on the global abstraction 
-    state $Sigma^hash$. The global abstraction state $Sigma^hash$ corresponds to inhabitants of the type
-    'a in the domain signature of @domain-mopsa-ocaml. The star is used to denote a list (i.e., a case
-    disjunction), potentially empty (meaning that this domain does not handle this case).
-    $semExprA("expr" in Epsilon,domain: D^hash)$, $semStmtA("stmt" in S, domain: D^hash)$
+    state $Sigma^hash$. $semExprA("expr" in Epsilon,domain: D^hash)$, $semStmtA("stmt" in S, domain: D^hash)$
   - Concrete input and output states of the abstract domain, written $D^"in"$ and $D^"out"$
   - a concretisation operator $gamma : D^hash -> P(P(D^"in") times P(D^"out"))$
 ]
@@ -341,7 +350,7 @@ modify the abstract representation (e.g. `a = a + 2` has the effect of adding 2 
 In a configuration file, the programmer defines how different domains coexist. 
 When composing a domain, the system takes the first domain that can handle a given expression or statement.
 
-The @figure-mopsa-domains representation illustrates a simplified configuration. 
+The @figure-mopsa-domains illustrates a simplified configuration. 
 The red domains are defined specifically for Jasmin. The blue domains are defined by Mopsa for his universal language. 
 Some domains only translate Jasmin statements into equivalent 
 statements in the universal language offered by Mopsa, like the loop domain that translates Jasmin's while and 
@@ -355,10 +364,9 @@ will handle the case. Otherwise, the system checks the following domains.
 Some cases will try to execute two different domains, like array out-of-bounds and array initialization, 
 where one domain checks for out-of-bounds access and the other checks and modifies the abstraction to determine 
 if an array is properly initialized. A domain can call other domains.
-
 For example, if we have `a = b[i]`, the domains that handle integer assignments will ask for the value of the 
 expression `b[i]`, and the same mechanism described before will be used to find the right domains (`array init` to have the value and
-`arr-out` to check that there is no error).
+`array out of bounds` to check that there is no error).
 
 
 #figure(
@@ -393,11 +401,13 @@ expression `b[i]`, and the same mechanism described before will be used to find 
 )<figure-mopsa-domains>
 
 
-This way of handle abstraction, offer a simple way for the developer to add abstraction, the developer only
-have to extends the AST of Mopsa to translate his language to the MOPSA AST, that is simple with Ocaml extensible types,
-and after the developer only defined new domain to handle new AST cases that he has add. Moreover MOPSA also give the possibility
-to give a reduce domain, to avoid the deloper redo things already well defined, like the `Value abstract domain` that permit to not
-reimplement a full domain. This value abstract domain was used for analyze the initialization of scalar variable (@section-init-scalar).
+This way of handling abstraction offers a simple method for developers to add abstractions. 
+The developer only needs to extend the AST of MOPSA to translate their language into the MOPSA AST, 
+which is straightforward with OCaml's extensible types. After that, the developer simply defines new domains 
+to handle the new AST cases they have added. Moreover, MOPSA also provides the possibility to use a reduced 
+domain to avoid requiring the developer to redo things that are already well-defined, such as the `Value Abstract Domain`, 
+which allows for not having to reimplement a full domain. This Value Abstract Domain was used to analyze the initialization of 
+scalar variables (@section-init-scalar).
 
 #def("Value abstract domain")[
   A value abstract domain is :
@@ -422,9 +432,10 @@ Variables are evaluate in a context $sigma$.
 $
   semExpr(v)sigma = { sigma(v) }\
   semExpr(z in ZZ)sigma = {z} \
-  semExpr(e_1 smash e_2) = semExpr(e_1) smash semExpr(e_2) \
+  semExpr(e_1 smash e_2) = semExpr(e_1) smash semExpr(e_2) "with" smash in {+,-,times,div,%}\
 $
-
+With $A smash B = {x smash y | x in A, y in B} "for" smash in {+,-,times}$ and
+$A smash B = {x smash y | x in A, y in B, y != 0} "for" smash in {div,%}$
 
 We write $semStmt(s) : S -> P(S)$ the semantic of an expression $s$.
 And we defined a conditional operator $semCond(c) : P(S) -> P(S)$, that filter the state that can statify the condition
@@ -515,13 +526,13 @@ $Init.maybe$ play the role of $top$.
 #figure(
 [
 $
-  a meet b = a widen b = a join b = cases(
+  a meet^hash b = a widen^hash b = a join^hash b = cases(
     a "if" a = b,
     Init.maybe  "if" a != b,
   )
 $
 $
-  semExprA(a star b, domain: #init_domain) = semExprA(a, domain: #init_domain) union semExprA(b, domain: #init_domain) "whith" star in { + , - , * , \/ , %} \
+  semExprA(a star b, domain: #init_domain) = semExprA(a, domain: #init_domain) union^hash semExprA(b, domain: #init_domain) "whith" star in { + , - , * , \/ , %} \
   semExprA(circle.filled.small a, domain: #init_domain) = semExprA( a, domain: #init_domain )  "whith" circle.filled.small in { + , - } \
   semExprA(c, domain: #init_domain) = Init.init "with" c "a constant" \
 $],
@@ -535,7 +546,8 @@ Inside abstract interpretation these values can be interpret has :
 - $Init.init$ for all path the variable is initialized
 - $Init.inot$ for all path the variable is not initialized
 
-We also defined the concretization function $gamma_#init_domain$ such that $gamma_#init_domain (v) = {top_("typeof"(v))} $.
+We also defined the concretization function to numerical value $gamma_(#init_domain -> "num")$ such that $gamma_(#init_domain -> "num") (v) = {top_("typeof"(v))} $
+and to `Init` concrete domain $gamma_(#init_domain -> "concrete init") (v) = cases( { Init.init } "if" v = Init.init, { Init.inot } "if" v = Init.inot, {Init.init, Init.inot} "if" v = Init.maybe)$.
 
 
 This is a value abstract domain. So by the property 2.5 of @mopsa-phd, MOPSA built a
@@ -750,8 +762,9 @@ and avoid dealing with integer representation.
 
 === Concretization
 
-We defined the concretisation function by : $gamma_#arr_domain (a[i])= gamma(semExprA(a[i]))$, with the $join$, we lose in precision
-bu we are sure that all possible value is present.
+We define the concretization function as follows: $gamma_#arr_domain (a[i]) = gamma(semExprA(a[i])) $. 
+With the $join$ in the setter and getter, we lose some precision, but we are sure that all possible values are represented.
+And in practice, this covers the majority of initialization cases.
 
 
 
@@ -853,7 +866,7 @@ the analysis takes around `0.430 seconds` for the new checker and around `6.37 s
 (See @details-performances-test for details about the tests.)
 
 The final implementation for the arrays feature consists of around 3,000 lines of code. The previous safety checker, 
-which performed more checks, had 7,000 lines of code. However, around 1,000 lines of code in the new safety checker 
+which performed more checks, had 7,000 #footnote([calculate with cloc, the code can be found here #link("https://github.com/LeoJuguet/jasmin/blob/cryptoline-mopsa/compiler/jasa/")]) lines of code. However, around 1,000 lines of code in the new safety checker 
 are dedicated to extending the MOPSA AST and translating the Jasmin AST to MOPSA.
 
 
