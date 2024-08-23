@@ -679,10 +679,10 @@ value.
   inset: 1em,
 )[
   *The intuition*: 
-  The representation with 3 segments, has two "movable" bounds $b_1$, $b_2$, in lot
-  of cases, the center is not initialized. So the extremities contains more precise information.
-  We want avoid to lose it, so we extends the extremities segments to the middle only when we are sure
-  that the bounds is always included in the interval set.
+  The representation with three segments has two "movable" bounds, $b_1$ and $b_2$. 
+  In many cases, the center segment is not initialized, meaning that the extremities 
+  contain more precise information. To avoid losing this information, we extend the extremity 
+  segments toward the middle only when we are certain that the bounds will always be included in the defined interval.
 ]
 
 
@@ -695,7 +695,7 @@ We have the following semantics :
 #let bound = $compose semCondA(i in [0;len(a)])$
 
 $
-  semStmtA(a[i] = e\;) = union.big cases(
+    semStmtA(a[i] = e\;) = union.big cases(
     semStmtA(b_1 = i + len\; s_1 = cases(e "if" i = 0,s_1 join^hash e )) compose semCondA(b_1 = i and i + len <= b_2) bound,
     semStmtA(b_1 = i + len \; b_2 = i + len \; s_1 = cases(e "if" i = 0,s_1 join^hash e)) compose semCondA(b_1 = i and i + len > b_2) bound,
     semStmtA(b_1 = i \; b_2 = i + len \; s_2 = e) compose semCondA(b_1 = i + len and i + len = b_2) bound,
@@ -906,10 +906,24 @@ to establish a workflow where developers run the safety checker and subsequently
 
 
 Thank you to the MPI-SP and the Gilles's Group for hosting me during this interniship.
+Thank you to the Formosa group for their hospitality.
 Thanks to Manuel Barbosa for his supervision and to Benjamin Grégoire, Vincent Laporte and Lionel Blatter 
 for following the project and answering questions about Jasmin.
 Thanks to Raphaël Monat from the MOPSA team for taking the time to answer my questions about abstract interpretation 
 and MOPSA and for monitoring the project.
+
+= Meta-Information
+
+- 1.5 months were spent understanding the safety conditions of Jasmin and starting to grasp MOPSA, along with a first implementation to detect division by zero.
+- 0.5 months were dedicated to checking for array initialization.
+- 0.5 months were spent implementing the initialization of scalar values.
+- 1 week was allocated for contracts and function calls.
+- 1.5 months were used to understand the segmentation functor and attempt its implementation.
+- 2 weeks to implement the final abstraction of arrays.
+
+Some of the time was also spent fixing bugs and attending talks at the institute. 
+Additionally, I had the opportunity to participate in two seminars with the Formosa team, 
+where I met other team members in person and discussed safety and the future of Jasmin.
 
 
 
@@ -921,7 +935,7 @@ and MOPSA and for monitoring the project.
 
 #set heading(outlined: false)
 
-= Annexes
+= Appendix
 
 == Test unrolling loop <test-speed-unroll-loop>
 ```jasmin
