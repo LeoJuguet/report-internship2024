@@ -306,10 +306,10 @@ on abstract domains modularity.
 
 
 MOPSA work with Domain, named composable abstract domain in @mopsa-phd.
-Theses domain, handle an abstract representation of things they want abstract (e.g. an interval of value, or the initialization
-states). Theses domain also take a partial expression and statement transfert function, that indicate who some instruction
-modify the abstract representation (e.g `a = a + 2` has for effect to add 2 to the interval representation of `a`).
-
+These domains handle an abstract representation of the things they want to abstract 
+(e.g. an interval of values, or the initialization states). 
+These domains also take partial expression and statement transfer functions, which indicate how certain instructions 
+modify the abstract representation (e.g. `a = a + 2` has the effect of adding 2 to the interval representation of `a`).
 #def("Composable abstract domain")[
   A value abstract domain is :
   - an abstract poset $(D^hash, subset.sq.eq\ ^hash)$
