@@ -451,7 +451,7 @@ $
 To have a better approximation of loops, Mopsa, always unroll the first iteration of the loop.
 
 
-These statments are classic in abstract interpration so Mopsa, already have domain that handle theses statments.
+These statements are classic in abstract interpration so Mopsa, already have domain that handle theses statements.
 
 
 
