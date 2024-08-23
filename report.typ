@@ -127,22 +127,22 @@ By relying on the third-party library MOPSA, which maintains the backend of the 
 
 = Context
 
-Writing a secure program is hard, as there are many considerations to take into account, and often small mistakes are
-involountary made by the programer, such as ensuring that a variable 
-is well-defined and that there are no out-of-bounds accesses, otherwise this can lead to
-write at a unsafe location and lead to a leakage of information. So a tool is needed to ensure that no mistakes are present.
 
-In Jasmin, a safety analyzer already exists, but there is a main problems:
-The current implementation is to slow for big programs, it's impossible to run an analysis on an independent function without
+Writing a secure program is hard, as there are many considerations to take into account, and often small mistakes are 
+involuntarily made by programmers, such as badly definining variables or accessing out-of-bound memory. These mistakes 
+can lead to writing at unsafe locations, leading to an information leak. Hence, a tool is needed to detect mistakes.
+
+In Jasmin, a safety analyzer already exists, but there is a main problem:
+The current implementation is too slow for big programs, it's impossible to run an analysis on an independent function without
 inlining other functions.
-Moreover the safety checker also ask to maintain a backend to be able to do abstract interpretation.
+Moreover the safety checker also asks to maintain a backend to be able to do abstract interpretation.
 
 The main goal of this internship was to explore MOPSA to see if it could be used to replace the old safety checker.
 
 == Contribution
 
 During this internship, I wrote a brand new safety analyzer for Jasmin @jasmin using the MOPSA @mopsa-phd library. 
-This safety checker is modular, meaning that a function can be analyzed independently. It can check if scalars are 
+This safety checker is modular, meaning that functions can be analyzed independently. It can check if scalars are 
 properly initialized, as well as arrays and memory, and ensure there are no out-of-bounds accesses.
 
 The safety checker uses contracts to check properties and offers a modular analyzer. It is also faster than the previous one.
@@ -178,27 +178,16 @@ The control flow of a Jasmin program is simple, with blocks, if statements, for 
 
 == Safety
 
+
+
 #def("Safety properties")[
 The safety properties of a Jasmin program are :
 - all scalar arguments are well initialized
 - all return scalars are well initialized
 - there is no out-of-bounds access for arrays
 - there is no division by zero
-- arithmetic operations are valid
-- alignment of memory accesses
-- reading/writing a valid memory region
 - termination
-]
-
-But we only target to check a part of theses properties, because some part are prove by the compiler, like alignement 
-
-#def("Safety properties")[
-The safety properties of a Jasmin program are :
-- all scalar arguments are well initialized
-- all return scalars are well initialized
-- there is no out-of-bounds access for arrays
-- there is no division by zero
-- arithmetic operations are valid
+- alignment of memory access
 ]
 
 In the following report, we will not talk about division by zero, even if a prototype of division by zero detection is implemented, 
@@ -531,15 +520,13 @@ non-relationnal abstract semantics, that is a sound abstraction of the concrete 
 
 = Initialisation of arrays <init-array>
 
-We name a cell initialised if before the cells was assign to a well initialized expression.
-
+Determining which parts of an array are initialized is essential for validating functions that access arrays
 
 == The difficulty <difficulty-array-init>
-The principal difficulty to prove that an array is well initialized, is to be sure
-that the overapproximation of the index use to set a cell in a loop will not
-provided an approximation were at the end all the array is initialized, when it's false
-like in the @ex1 were the over approximation will give `a[x] = 5` with $x in [2;512]$, but
-only even indexes are initialized.
+The main difficulty in proving that an array is well-initialized lies in ensuring that the over-approximation 
+of the index used to set a cell in a loop does not lead to a situation where it falsely appears that the entire 
+array is initialized. For example, in @ex1, the over-approximation might suggest that `a[x] = 5` for `x` $in [2; 512]$, 
+while in reality, only the even indexes are initialized
 
 #figure(
 ```jasmin
@@ -552,7 +539,7 @@ for i = 0 to 256 {
 caption: [partial initialisation of an array],
 ) <ex1>
 
-== Aproach
+== Aproaches
 
 To initialize an array, different methods exist:
 
@@ -564,14 +551,20 @@ and this ask to unroll loops.
 *Array smashing:* This approach abstracts a variable by a single variable that represents the entire content of the array, 
 but this will not work in your case to prove the initialization.
 
-*Cousot's Cousot's approach:* The approach described in the Cousot's Cousot's paper @cousot-p @cousot-article defines a 
+*Parametric segmentation functor:* The approach described in the Cousot's Cousot's paper @cousot-p @cousot-article defines a 
 functor that takes 3 different domains to represent values and bounds. The advantage of this algorithm is that it can 
 show that an array is initialized even if it is not initialized from one border to the center. However, the problem with 
 the implementation described is that the functor takes three domains, and the function deals with values in that domain, 
 particularly with some symbolic equalities on the bounds. This way of dealing with domains is not really in the spirit of 
-MOPSA, which prefers to deal with domains and have less information about them. The symbolic equalities would require 
-reimplementing the relational-domain already available, or to be able to do a symbolic equalities of a variable
-in two different context, but this ask to modify Mopsa. 
+MOPSA, which prefers to deal with domains and have less information about them. 
+The symbolic equalities would require reimplementing the relational-domain already available in MOPSA, in order to be able 
+to do symbolic equalities of a variable in two different contexts. However, this would ask us to modify MOPSA itself.
+We did try to do this, but we finally chose a simpler implementation, for reasons of time and because the simpler algorithm 
+covers a sufficiently large number of Jasmin programs.
+
+
+== 3 Segments <3-array-segs>
+
 
 We want deal with to constraints. First we want avoid to have one variable for
 each cells of the arrays. Because create a variable for each cells, means
@@ -585,12 +578,11 @@ precise analysis for loop with invariant difficult to infer, see @perf.
 
 
 So we finally move to a more simpler algorithm that can only prove the initialization of arrays if
-we initialize from border to the center, this initialization is a form of array partitionning but
-with a fixed number of partition at 3. In pratices, this is the case in a majority of cases that
+we initialize from border of the array to the center. In pratices, this is the case in a majority of cases that
 jasmin deal.
+This initialization is a form of array partitionning but
+with a fixed number of partition at 3.
 
-
-== 3 Segments <3-array-segs>
 
 === Representation
 
@@ -608,7 +600,12 @@ jasmin deal.
   caption : [Representation of an array]
 )<repr-array>
 
+We suppose that we have a numerical domain, if possible a relational domain, $D^hash_"num"$ 
+and a domain that represents initialization $D^hash_"init"$ 
+(a numerical domain can also be used to analyze the values of the array) in the configuration of the analyzer.
 We represent each arrays with 3 segments, so only 7 variables are needed to represent an array.
+The bounds of segments are represented by variables handled by the $D^hash_"num"$ domain, 
+while the values of the segments are represented in the $D^hash_"init"$ domain.
 Four variables are to represent the limit of segments, and three are for representing the value in the segment.
 So an array $a$ can be represented like that $a = {b_0} s_1 {b_1} s_2 {b_2} s_3 {b_3}$ with the properties $0 <= b_1 <= b_2 <= "len"(a)$.
 Moreover $b_0$ and $b_3$ are always constant with repectively the value $0$ and $len(a)$.
@@ -618,11 +615,11 @@ union, intersection, to other domain were the variable live.
 
 Initially we have : 
 $
-  b_0 = 0, \
-  b_1 = 0, \
-  b_2 = b_3, \
-  b_3 = "len"(a) \
-  e_1 = e_2 = e_3 = top "and not init"
+  b_0 = 0,
+  b_1 = 0,
+  b_2 = b_3,
+  b_3 = "len"(a),
+  s_1 = s_2 = s_3 = top "and not init"
 $
 
 This method is pretty simple to implement in mopsa. The only case that you need to deal is when you want get a result or when we want assign a 
@@ -649,25 +646,33 @@ Let suppose that we do $a[i] = e$ with $i$ and $e$ two expression.
 First we suppose that $gamma(semExpr(i)) subset.eq [0; len(a)]$, if this is not the cases,
 we raise an out of bound exception and we continue with this assumption.
 
-We have the following cases, if different cases are possible, if there exist in the environment a concretisation
-such that the cases is valid, we do all cases separately and we join the different array abstraction obtains.
+We have the following semantics :
+
+#let bound = $compose semCondA(i in [0;len(a)])$
 
 $
-
-  "if" [i; i + "len"] subset.eq [b_j; b_(j+1)] "then" s_(j+1) = s_(j+1) join e ("with" j in [|0;2|])\
   semStmtA(a[i] = e\;) = union.big cases(
-    semExprA(b_1 = i + len\; s_1 = s_1 join e) compose semCondA(b_1 = i and i + len <= b_2),
-    semExprA(b_1 = i + len \; b_2 = i + len \; s_1 = s_1 join e) compose semCondA(b_1 = i and i + len > b_2),
-    semExprA(b_1 = i \; b_2 = i + len \; s_2 = s_1 join e) compose semCondA(b_1 = i + len and i + len = b_2),
-    semExprA(s_2 = s_2 join e) compose semCondA(b_1 < i and i + len < b_2),
-    semExprA(b_2 = i \; s_3 = s_3 join e) compose semCondA(b_1 < i and b_2 = i + len),
+    semStmtA(b_1 = i + len\; s_1 = cases(e "if" i = 0,s_1 join^hash e )) compose semCondA(b_1 = i and i + len <= b_2) bound,
+    semStmtA(b_1 = i + len \; b_2 = i + len \; s_1 = cases(e "if" i = 0,s_1 join^hash e)) compose semCondA(b_1 = i and i + len > b_2) bound,
+    semStmtA(b_1 = i \; b_2 = i + len \; s_2 = e) compose semCondA(b_1 = i + len and i + len = b_2) bound,
+    semStmtA(s_2 = s_2 join^hash e) compose semCondA(b_1 < i and i + len < b_2) bound,
+    semStmtA(b_2 = i \; s_3 = cases(e "if" i + len = len(a),s_3 join^hash e)) compose semCondA(b_1 < i and b_2 = i + len) bound,
       
-    semExprA(s_3 = s_3 join e) compose semCondA(b_1 < i and b_2 < i + len and b_2 < i),
-    semExprA(b_2 = i \; s_3 = s_3 join e) compose semCondA(b_1 < i and b_2 < i + len and b_2 >= i),
-    semExprA(s_1 = s_1 join e) compose semCondA(i < b_1 and i + len < b_1),
-    semExprA(b_1 = i + len \; s_1 = s_1 join e) compose semCondA(i + len >= b_1),  
+    semStmtA(s_3 = s_3 join^hash e) compose semCondA(b_1 < i and b_2 < i + len and b_2 < i) bound,
+    semStmtA(b_2 = i \; s_3 = s_3 join^hash e) compose semCondA(b_1 < i and b_2 < i + len and b_2 >= i) bound,
+    semStmtA(s_1 = s_1 join^hash e) compose semCondA(i < b_1 and i + len < b_1) bound,
+    semStmtA(b_1 = i + len \; s_1 = s_1 join^hash e) compose semCondA(i < b_1 and i + len >= b_1) bound,  
   )
 $
+
+In practice, we use a $join^hash$ operation that joins the possible values of two expressions. This is effectively a convex join in the interval domain. 
+It's essentially a case disjunction to determine if we can extend the segment on the left or right in the direction of the middle.
+
+When using the numeric relational domain of MOPSA, in the majority of cases, if we initialize from left to right, the first case is the one that is verified, 
+even with the widening of bounds and the index in loops.
+
+This simpler approach, while potentially less precise than a full symbolic equality implementation, has proven sufficient for a large number of Jasmin programs, 
+allowing us to deliver a working analysis within the given time and resource constraints.
 
 === Access
 
@@ -685,63 +690,30 @@ $
 
 === Example
 
-#block(
-stroke: rgb("#C8AD7F"),
-fill: rgb("#C8AD7F"),
-inset: 5pt,
-width: 100%,
-[ 
-*Example*
-#grid(
-  columns: (30%,70%),
-[
-```jasmin
-fn f() -> reg u64
-{
-  reg u64[20] a;
-  inline int i;
-  reg u64 ret;
-  reg bool b;
 
-  b = true;
-  i = 0;
-
-  while (b) {
-    if i > 10 {
-      b = false;
-    }
-    a[i] = 0;
-    
-    i += 1;
-  }
-
-  ret = a[15];
-  return ret;
-}
-```
-],[
-  On the example on the right, after that the first loop is executed, we have
-  $ a = {0} Init.init {b_1 = 1} Init.inot {b_2 = 21} Init.inot {b_3 = 21}$ and $i = 1$, $b = "true"$,
-  before redo a loop iteration, the widening operator is apply, and the numeric domain
-  cannot infer that $i <= 10$, will we have the upper approximation $i = [1; + infinity]$,
-  and we also have that $i = b_1$.
-  
-  $ a = {0} Init.init {b_1 = [1, + infinity]} Init.inot {b_2 = 21} Init.inot {b_3 = 21}$ and $i = 1$, $b = "true"$,
-
-
-  So when we access at the index 15 of the array $a$ we do the join of $s_1$ and $s_2$ so we obtain $Init.maybe$.
-]
-)
-]
-)
+In @ex1, with your abstraction, we have the following state before the loop: 
+$
+a={0} Init.inot{b_1=0} Init.inot{b_2 =len(a)} Init.inot{len(a)}
+$
+At the end of the first iteration, we have 
+$
+a={0} Init.init{b_1= 1 = 2i+1} Init.inot{b_2 =len(a)} Init.inot{len(a)} ", with" i=0
+$
+The widening operator is applied, resulting in $i=[1;255]$. Then, when we execute `a[2*i] = 5`, we find that $2i=[2;510]$.
+Thus, we have 
+$
+a={0} Init.init{b_1 =1} Init.maybe{b_2 =len(a)} Init.inot{len(a)}
+$
+At the end of the loop, we can only conclude that index 0 is initialized, and possibly some indices between $1$ and $255$.
 
 #block()[
   *Note :*
-Here we only talk about initialization of the array, but in fact, with the help of Mopsa, and the separation of domains, 
-we also have a range of possible values for each interval.
-The only details is that in Jasmin, we can cast an array to array of the same size in byte, 
-but with a different type interpretation for values (see a table of u64 to a table of u32 for example), 
-in this case for the moment we send $top$ value in numerical domains, to be sure to be sound and avoid to deal with intenger representation.
+Here we only discuss the initialization of the array. However, with the help of Mopsa and the separation of domains, we also have a range of 
+possible values for each segments. 
+
+The only detail is that in Jasmin, we can cast an array to an array of the same size in bytes, but with a different type interpretation for values 
+(see a table of `u64` to a table of `u32`, for example). In this case, for the moment, we send the $top$ value in numerical domains to ensure soundness 
+and avoid dealing with integer representation.
   ]
 
 === Soundness
@@ -750,72 +722,71 @@ in this case for the moment we send $top$ value in numerical domains, to be sure
 
 = Contract and function call <contract>
 
-Like in lot of programming language, it's possible in Jasmin to do function call,
-but a function call didn't have any side effect, like jasmin program didn't produce any
-side effect.
-A function call take differents a predefined number of argument and return a tuple
-of argument that is imediately split when we do an assign of a function call
-this is write like this ```jasmin v1, v2, v3 = f(e1,e2,e3);``` in jasmin.
+Like in many programming languages, it is possible in Jasmin to make function calls. 
+However, a function call does not have any side effects; that is, a Jasmin program does not produce any side effects. 
+A function call takes a predefined number of arguments and returns a tuple of arguments that is immediately unpacked when 
+we assign the result of the function call. This is written as follows in Jasmin: 
+```jasmin v1, v2, v3 = f(a1,a2, a3,a4);``` 
+In this example, we take 4 arguments that return 3 values, but this number is not fixed.
 
-We name a contract a list of precondition or postcondition that an function has to verify.
-Mopsa already have a contract languages for C @contract-paper and it's similar to Frama-C's ACSL but there are
-used only if the function source is not available. However in Jasmin's team we want be able to check independently 
-each function. So we slightly modify from our side the comportment of contract, by modifing our domain on your side.
 
-The new comportment is :
-When we have a function call, we check if we have a contract associated to this function,
-if yes we check that the requires are satifies, and we apply the post-condition to the variable $v_i$.
-Otherwise if we didn't found any requires we only check that the scalar in argument are well initialized,
-and we assign the return value to $top$ and initialized for the case of scalar variable.
+We refer to a contract as a list of preconditions or postconditions that a function must satisfy. 
+Mopsa already has a contract language for C (see @contract-paper), which is similar to Frama-C's ACSL, 
+but these are used only if the function source is not available. However, in the Jasmin team, we want to be able to 
+check each function independently. Therefore, we slightly modified the behavior of contracts by adjusting our domain on your side.
 
-Jasmin has an experimental feature of contract to send it to Easycript or Cryptoline, we reuse the syntaxt tree where 
-we catch expression of the following form that we can translate to Mopsa stubs.
+The new behavior is as follows:
+When we have a function call, we check if there is a contract associated with this function. If so, we verify that 
+the preconditions are satisfied and apply the postconditions to the variables on the left side of the assignment. If we do not find any preconditions, 
+we only check that the scalar arguments are well-initialized, and we assign the return value to $top$ and initialize it for the case of scalar variables.
 
-Supported contract in Jasmin, for this experimentation are :
-- Conjonction of proposition
-- `init_array(v : var, offset: int, len: int)` a propostion that affirm that the array `v` is well initialized between the indexes `offset` and `int`
-- Post and Pre condition
+Jasmin has an experimental feature for contracts that allows them to be sent to Easycrypt or Cryptoline. 
+We reuse the syntax tree to capture expressions of the following form, which we can translate to Mopsa stubs.
 
-*Remark :* the contract language from user side didn't have a proposition to say that a scalar variable is initialized, because this is a pre and post condition
-that have to be check for every function. 
+The supported contracts in Jasmin for this experimentation are:
+
+- Conjunction of propositions
+- `init_array(v : var, offset: int, len: int)` a proposition that affirms that the array v is well-initialized between the indexes offset and len
+- Postconditions and preconditions
+
+
+*Remark :* 
+The contract language from the user side does not have a proposition to indicate that a scalar variable is initialized, as this is a precondition and postcondition 
+that must be checked for every function
 
 = Memory
 
-#emoji.warning *Warning :* this part is not yet implemented in the safety checker.
+#emoji.warning *Warning:* This part is not yet implemented in the safety checker.
 
+The memory model in Jasmin is quite simple; it can be viewed as a large array.
 
+In the previous safety checker, it was able to infer which regions of an array had to be initialized. However, this mechanism does not seem useful, 
+and the constraints provided by the programmer are preferred to ensure that the programmer knows what they are doing. For this reason, we prefer that 
+the programmer provides a contract through the Jasmin annotation system.
 
-The memory model in Jasmin is pretty simple, it can be viewed as a large array.
+If we assume that each pointer provided by the programmer points to a distinct region (with no overlap between the regions defined by each pointer), 
+we can reuse the 3-segment implementation that we previously used for arrays @3-array-segs.
 
-In the previous safety checker, it was able to infer which regions of an array 
-had to be initialized. But this mechanism does not seem useful, and the constraints 
-given by the programmer are preferred, to ensure that the programmer knows what they 
-are doing. For this, we prefer that the programmer provides a contract @contract through the Jasmin annotation system.
+The planned contracts for the moment consist of three predicates:
 
-If we assume that each pointer provided by the programmer points to a distinct region 
-(there is no overlap between the regions defined by each pointer), we can reuse the 
-3-segment implementation that we previously used for arrays @3-array-segs.
-
-
-The planned contracts for the moment consist of 3 predicates:
-
-- `init_memory(v: var, offset: int, len: int)` defines that the region $[v + "offset"; v + "offset" + "len"]$ is readable, so it is an initialized region.
+- `init_memory(v: var, offset: int, len: int)` defines that the region $[v + "offset"; v + "offset" + "len"]$ is readable, indicating that it is an initialized region.
 - `write_memory(v: var, offset: int, len: int)` defines that the region $[v + "offset"; v + "offset" + "len"]$ is writable.
-- `assign_memory(v: var, offset: int, len: int)` defines that the region $[v + "offset"; v + "offset" + "len"]$ is initialized, at the output of the function.
+- `assign_memory(v: var, offset: int, len: int)` defines that the region $[v + "offset"; v + "offset" + "len"]$ is initialized at the output of the function.
 
-To check for out-of-bounds access in memory, i.e., access to places where we cannot write, we can easily check that we are within the 
-bounds declared as readable. In Jasmin, the memory is allocated before the call, and generally, there are not many arguments to function calls,
-so the number of segments will be finite and not expensive.
-To check if we can write to a place, the same check as before can be done.
-The complicated part is to check if a region that is not initialized at the function call but is well-initialized at some point during the 
-execution of the call or at the end. So, to check the `assign_memory` predicate.
-If we assume the strong assumption that each pointer points to a different region of memory without overlapp, then we can consider each pointer as an 
-array of length $max_(("offset", len) in P_v)("offset"+len)$ (with $P_v$ the set
-of pair offset, length that appear in a predicate relatif to $v$) 
-and we can set as initialized the regions that we know are initialized, if they are on one side of the array.
+To check for out-of-bounds access in memory, i.e., access to locations where we cannot write, we can easily verify that we are within the bounds declared as readable. 
+In Jasmin, the memory is allocated before the call, and generally, there are not many arguments to function calls, so the number of segments will be finite and not 
+expensive. To check if we can write to a location, the same check as before can be performed.
 
-This method, which unfortunately has not been tested in practice, seems to handle a majority of cases. 
-The only real problem comes from the inability to handle pointer aliasing.
+The complicated part is checking if a region that is not initialized at the function call becomes well-initialized at some point during the execution of the call 
+or at the end, to verify the `assign_memory` predicate. If we assume the strong assumption that each pointer points to a different region of 
+memory without overlap, we can consider each pointer as an array of length $max_{(("offset", len) in P_v)}("offset" + len)$ (with $P_v$ being the set of pairs 
+of offset and length that appear in a predicate related to the variable $v$). We can then set as initialized the regions that we know are initialized if 
+they are on one side of the array that abstract $v$.
+
+This method, which unfortunately has not been tested in practice, seems to handle the majority of cases. The only real problem arises from the inability to 
+handle pointer aliasing.
+
+
 
 = Performance and Implementation <perf>
 
@@ -829,46 +800,59 @@ The only real problem comes from the inability to handle pointer aliasing.
 )],
 caption: "Example of output of the safety checker when there is an error or a warning"
 )
-To give an idea of the performance of the new safety checker, we tried it on the `ntt` function @ntt-function.
 
-With the old safety checker, the analysis of the function took `30 seconds`, this is now possible in less than `3 seconds`.
-However, in both cases with the widening, we are only able to prove that the array is well-initialized (because it is well-initialized before). 
-Due to the upper bound approximation of scalars in the loop for the widening, we are not able to prove that there is no out-of-bounds access.
-If we unroll the loop, we are able to prove that the array is well-initialized and there is no out-of-bounds access and the loop terminated (like the
-analysis terminate with loop unrolling), 
-this takes `45 seconds` with the new safety checker. With the older safety checker, after `3 hours`, the analysis was not finished.
+
+
+To give an idea of the performance of the new safety checker, we tested it on the `ntt` function @ntt-function.
+
+With the old safety checker, the analysis of the function took `30 seconds`; this is now possible in less than `3 seconds`.
+However, in both cases with the widening, we are only able to prove that the array is well-initialized (because it is well-initialized beforehand). 
+Due to the upper bound approximation of scalars in the loop for the widening, we are unable to prove that there is no out-of-bounds access.
+
+If we unroll the loop, we can prove that the array is well-initialized, that there is no out-of-bounds access, and that the loop terminates 
+(as the analysis terminates with loop unrolling). This takes `45 seconds` with the new safety checker. With the older safety checker, after `3 hours`, 
+the analysis was not finished.
+
 In another file with 6 different functions #footnote([#link("https://github.com/LeoJuguet/jasmin/blob/cryptoline-mopsa/compiler/jasa/tests/test_poly.jazz")]), 
-the analysis takes around `0.430s` for the new checker to be analyzed, and around `6.37s` for the previous checker. 
-(see @details-performances-test for details about the tests.)
+the analysis takes around `0.430 seconds` for the new checker and around `6.37 seconds` for the previous checker. 
+(See @details-performances-test for details about the tests.)
+
+The final implementation for the arrays feature consists of around 3,000 lines of code. The previous safety checker, 
+which performed more checks, had 7,000 lines of code. However, around 1,000 lines of code in the new safety checker 
+are dedicated to extending the MOPSA AST and translating the Jasmin AST to MOPSA.
 
 
-The final implementation for the arrays feature counts around 3,000 lines of code. The previous safety checker that performed more checks has 7,000 lines of code. 
-However, around 1,000 lines of code in the new safety checker are for extending the MOPSA AST and translating the Jasmin AST to MOPSA.
 
 = Conclusion and future work
 
-This new safety checker, written with MOPSA, check that scalar variable are well initialized, the array access are in bounds,
-and successfuly check is array are well initialized, when there are initialized from one border to the middle. Moreover
-the support of contract allow to check function independently, and check to check property, like the initialization of array.
-Futhermore, with the modularity of Mopsa, the code is simple to extend and maintain.
-This implementation is also faster than the previous one, and the way MOPSA is built provides 
-some ideas to add more checks inside the safety checker. 
-However, implementing the support of basic memory will be necessary to support a larger proportion of Jasmin programs. 
-But without a doubt, it is possible to implement this with MOPSA, without significant loss in speed.
+
+
+
+This new safety checker, written with MOPSA, checks that scalar variables are well-initialized, 
+that array accesses are in bounds, and successfully verifies that arrays are well-initialized when 
+they are initialized from one border to the middle. Moreover, the support for contracts allows for independent 
+function checks and property verification, such as the initialization of arrays. Furthermore, with the modularity of MOPSA, 
+the code is simple to extend and maintain. This implementation is also faster than the previous one, and the way MOPSA is built 
+provides ideas for adding more checks inside the safety checker.
+
+However, implementing support for basic memory will be necessary to accommodate a larger proportion of Jasmin programs. 
+Without a doubt, it is possible to implement this with MOPSA without significant loss in speed.
 
 It seems that with MOPSA, it is possible to handle more checks on values, such as verifying if an array is initialized with only 0s.
 
-Detection of loop termination will also be interesting to check, but due to the over-approximation approach of MOPSA, 
-this may not be easy to implement. Currently, termination is only proved when loops are fully unrolled and the analysis terminates.
+Detecting loop termination will also be interesting to check, but due to the over-approximation approach of MOPSA, 
+this may not be easy to implement. Currently, termination is only proven when loops are fully unrolled, and the analysis terminates.
 
-Other tasks need to be completed to finish the prototype and move towards a more "production-ready product".
+Other tasks need to be completed to finish the prototype and move towards a more "production-ready" product.
 
 In Jasmin, it is possible to call a CPU instruction and get the result and flags, which depend on the target CPU. 
-For now, the output is the top value and initialized for scalar values, but an approach similar to function calls will be possible, with specific cases handled.
-Similar things can also be done for system calls, which are not yet handled.
+For now, the output is the top value and initialized for scalar values, but an approach similar to function calls will be possible, 
+with specific cases handled. Similar functionality can also be implemented for system calls, which are not yet handled.
 
-For a more advance future, it's also plan to be able to communicate to EasyCrypt which properties already has been proved by the safety checker, to have
-a workflow in the future, where developer run the safety checker and prove after in EasyCrypt part that have not been yet proved.
+For a more advanced future, it is also planned to communicate to EasyCrypt which properties have already been proven by the safety checker, 
+to establish a workflow where developers run the safety checker and subsequently prove parts in EasyCrypt that have not yet been verified.
+
+
 
 = Acknowledgements
 
