@@ -102,12 +102,12 @@
   #set par(justify:false)
   *Abstract* \
 
-  We have written a new safety checker for Jasmin, a programming language for high-assurance and high-speed 
+  We present a new safety checker for Jasmin, a programming language for high-assurance and high-speed 
   cryptographic code implementation. The safety checker detects initialization of scalars, initialization of 
   arrays to a certain extent, and access out of bounds without unrolling loops using widening. This new safety 
-  checker is mostly based on the MOPSA library. It's is undoubtedly faster than the previous one,
-  with the support of function contract and the possibility to do a modular analysis.
-  This new safety checker, created with MOPSA, also opens up the possibility to check more properties than the previous 
+  checker is mostly based on the MOPSA library. It is undoubtedly faster than the previous one,
+  thanks to the support of function contract and to do modular analysis.
+  This new safety checker, created with MOPSA, also enables checking more properties than previous 
   safety checker, with the ability to analyze the values.
 ]
 
@@ -116,19 +116,19 @@
 
 
 Jasmin @jasmin is a programming language that aims to be secure, particularly for cryptographic code.
-The compiler is written in Coq and provides a proof that the code will be correctly translated to assembly, under certain assumptions.
-These assumptions are checked by a safety checker, but the previous one was too slow, and not precise has we want. Moreover
-the safetychecker is today hard to maintain, and didn't allow modular analysis.
+Its compiler is written in Coq and provides a proof that the code will be correctly translated to assembly, under certain assumptions.
+These assumptions are checked by a safety checker, but the previous one was too slow, and not as precise as we wanted. Moreover
+the safety checker is hard to maintain today, and doesn't allow modular analysis.
 The goal of this internship was to create a new, more efficient, more maintanable, and more precise
- safety analyzer that would be able to check that the conditions on a Jasmin code are well-present.
+ safety analyzer that would be able to check that the conditions on any Jasmin code is verified.
 
-For this, I used MOPSA, a static analyzer library that aims to be modular, in order to easily add a frontend for the Jasmin language, and
-a more maintable code with the relying to a third party library for the maintening of the backend of the abstract interpretation.
+For this task, I used MOPSA, a static analyzer library that aims to be modular, in order to easily add a frontend for the Jasmin language.
+By relying on the third-party library MOPSA, which maintains the backend of the abstract interpretation, the resulting codebase is more maintainable.
 
 = Context
 
-Writing a secure program is hard, there are many considerations to take care of, and often small mistakes are
-added unvolountary by the programer, such as ensuring that a variable 
+Writing a secure program is hard, as there are many considerations to take into account, and often small mistakes are
+involountary made by the programer, such as ensuring that a variable 
 is well-defined and that there are no out-of-bounds accesses, otherwise this can lead to
 write at a unsafe location and lead to a leakage of information. So a tool is needed to ensure that no mistakes are present.
 
@@ -443,27 +443,24 @@ $
   semStmtA( x = e)Sigma = {sigma[x <- v] | sigma in Sigma, v in semExprA(e)sigma} \
   semStmtA("for" v = c_1 "to" c_2 { s }) = semStmtA(v = c_1\; "while" v < s { s; v = v + 1;}) \
   semStmtA("while" c { s_1 } (s_2)) = semStmtA( s_2 \; "while" c { s_1 \; s_2 } ) \
-  semStmtA("while" c { s_1 })sigma^hash = semCondA(not c) lim delta^n (bot) "with" delta(x^hash) = x^hash widen (sigma^hash union.sq^hash semCondA(s) compose semCondA(c) x^hash)
+  semStmtA("while" c { s_1 })sigma^hash = semCondA(not c) lim delta^n (bot) "with" delta(x^hash) = x^hash widen (sigma^hash union.sq^hash semStmtA(s) compose semCondA(c) x^hash)
 $
 
 
 
-To have a better approximation of loops, Mopsa, always unroll the first iteration of the loop.
+To have a better approximation of loops, Mopsa, always unrolls the first iteration of the loop.
+For loops, if the user has the guarantee that the loops terminate, it is also possible to unroll 
+the loop to have a better approximation. However, this slows down the analysis, because each iteration 
+of the loop is simulated and there is no guarantee that the analysis will terminate.
+The user can also choose to unroll only a fixed number of iterations, and then perform the widening 
+operation afterwards. This also provides a better approximation, but it slows down the analysis.
+
+The semantics of these statements and instructions are classic in abstract interpretation, so Mopsa already has domains 
+for its universal language that can be reused. The Jasmin expressions and statements can be simply translated to the universal language, 
+and this translation is natural without any surprises.
 
 
-These statements are classic in abstract interpration so Mopsa, already have domain that handle theses statements.
 
-
-
-
-
-== Default Domain
-
-
-Mopsa offer different default domain :
-
-- numerical domains : in particular interval domains and relational domains.
-- iterators domains in universal language to manipulate principal statements.
 
 = Initialisation of scalar <section-init-scalar>
 
@@ -658,24 +655,17 @@ such that the cases is valid, we do all cases separately and we join the differe
 $
 
   "if" [i; i + "len"] subset.eq [b_j; b_(j+1)] "then" s_(j+1) = s_(j+1) join e ("with" j in [|0;2|])\
-  cases(
-    "if" b_1 = i "then" cases(
-      "if" i + len <= b_2 "then" b_1 <- i + len and s_1 <- s_1 join e,
-      "if" i + len > b_2 "then" b_1 <- i + len and b_2 <- i + len and s_1 <- s_1 join e,
-      "if" i + len = b_2 "then" b_1 <- i and b_2 <- i + len and s_2 <- s_1 join e
-    ),
-    "if" b_1 < i "then" cases(
-      "if" i + len < b_2 "then" s_2 <- s_2 join e,
-      "if" b_2 = i + len "then" b_2 = i and s_3 <- s_3 join e,
-      "if" b_2 < i + len "then" cases(
-        "if" b_2 < i "then" s_3 <- s_3 join e,
-        "if" b_2 >= i "then" b_2 = i and s_3 <- s_3 join e,
-       )
-    ),
-    "if" i < b_1 "then" cases(
-      "if" i + len < b_1 "then" s_1 <- s_1 join e,
-      "else" b_1 <- i + len and s_1 <- s_1 join e,  
-    )
+  semStmtA(a[i] = e\;) = union.big cases(
+    semExprA(b_1 = i + len\; s_1 = s_1 join e) compose semCondA(b_1 = i and i + len <= b_2),
+    semExprA(b_1 = i + len \; b_2 = i + len \; s_1 = s_1 join e) compose semCondA(b_1 = i and i + len > b_2),
+    semExprA(b_1 = i \; b_2 = i + len \; s_2 = s_1 join e) compose semCondA(b_1 = i + len and i + len = b_2),
+    semExprA(s_2 = s_2 join e) compose semCondA(b_1 < i and i + len < b_2),
+    semExprA(b_2 = i \; s_3 = s_3 join e) compose semCondA(b_1 < i and b_2 = i + len),
+      
+    semExprA(s_3 = s_3 join e) compose semCondA(b_1 < i and b_2 < i + len and b_2 < i),
+    semExprA(b_2 = i \; s_3 = s_3 join e) compose semCondA(b_1 < i and b_2 < i + len and b_2 >= i),
+    semExprA(s_1 = s_1 join e) compose semCondA(i < b_1 and i + len < b_1),
+    semExprA(b_1 = i + len \; s_1 = s_1 join e) compose semCondA(i + len >= b_1),  
   )
 $
 
