@@ -8,6 +8,8 @@
 #let head(title, authors, date) = align(center)[
   #text(17pt)[*#title*]\
   #authors \
+  supervised by Manuel Barbosa, lecturer at University of Porto and researcher at INESC TEC \
+  at MPI-SP, Bochum \
   #date \
 ]
 

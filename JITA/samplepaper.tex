@@ -1,0 +1,181 @@
+% This is samplepaper.tex, a sample chapter demonstrating the
+% LLNCS macro package for Springer Computer Science proceedings;
+% Version 2.21 of 2022/01/12
+%
+\documentclass[runningheads]{llncs}
+%
+\usepackage[T1]{fontenc}
+% T1 fonts will be used to generate the final print and online PDFs,
+% so please use T1 fonts in your manuscript whenever possible.
+% Other font encondings may result in incorrect characters.
+%
+\usepackage{graphicx}
+% Used for displaying a sample figure. If possible, figure files should
+% be included in EPS format.
+%
+% If you use the hyperref package, please uncomment the following two lines
+% to display URLs in blue roman font according to Springer's eBook style:
+% \usepackage{color}
+% \renewcommand\UrlFont{\color{blue}\rmfamily}
+% \urlstyle{rm}
+%
+\begin{document}
+%
+\title{
+  Jasa : A new Jasmin Safety Analyser based on MOPSA
+}
+%
+%\titlerunning{Abbreviated paper title}
+% If the paper title is too long for the running head, you can set
+% an abbreviated paper title here
+%
+\author{Léo Juguet\inst{1,2} \and
+		Manuel Barbosa\inst{3,4} \and
+		Benjamin Grégoire\inst{5} \and
+		Vincent Laporte\inst{6} \and
+		Raphaël Monat\inst{7}
+}
+%
+\authorrunning{L. Juguet et al.}
+% First names are abbreviated in the running head.
+% If there are more than two authors, 'et al.' is used.
+%
+\institute{ENS Paris-Saclay \email{leo.juguet@ens-paris-saclay.fr} \and
+           MPI-SP, Bochum, Germany \and
+		   University of Porto (FCUP), Porto, Portugal \email{mbb@fc.up.pt}\and
+		   INESC TEC, Porto, Portugal \and
+		   Université Côte d'Azur, Inria, France \email{benjamin.gregoire@inria.fr} \and
+		   Université de Lorraine, CNRS, Inria, LORIA, F-54000 Nancy, France \email{vincent.laporte@inria.fr} \and
+		   Univ. Lille, Inria, CNRS, Centrale Lille, UMR 9189 CRIStAL, F-59000 Lille, France \email{raphael.monat@inria.fr}
+		}
+%
+\maketitle              % typeset the header of the contribution
+%
+\begin{abstract}
+We present a new security checker for Jasmin, a programming language for 
+implementing high-assurance, high-speed cryptographic codes. The safety
+checker detects scalar initialization, array initialization to some extent, 
+and out-of-bounds access without unrolling loops using widening. This new safety 
+checker is mainly based on the MOPSA library. 
+It is undeniably faster than its predecessor, 
+thanks to support for function contracts and modular analysis. 
+This new safety controller, created with MOPSA, also allows more properties 
+to be checked than the previous safety controller, with the ability to analyse 
+values.
+
+\keywords{Abstract Interpretation \and
+		  Array abstraction \and 
+		  Array content analysis \and 
+		  Program verification \and 
+		  Static analysis}
+\end{abstract}
+%
+%
+%
+\section{Resume}
+\subsection{Introduction}
+
+\subsubsection{Context} 
+Writing a secure program is hard, as there are many considerations to take into 
+account, and often small mistakes are 
+involuntarily made by programmers, such as badly definining variables or 
+accessing out-of-bound memory. These mistakes 
+can lead to writing at unsafe locations, leading to an information leak. 
+Hence, a tool is needed to detect mistakes.
+
+In particular for Jasmin \cite{jasmin} a programming language that aims 
+to be secure for cryptographic code.
+Its compiler is mostly written in Coq and provides a proof that the code will be 
+correctly translated to assembly, under certain assumptions.
+These assumptions are checked by a safety checker,
+that use abstract interpretation \cite{cousot-lattice}
+ but the current tool is too slow, and not as precise as we wanted. Moreover
+the safety checker is hard to maintain today, and doesn't allow modular analysis.
+
+The goal of this work was to create a new safety checker
+more efficient, more maintanable, and 
+more precise safety analyzer that would be able to check that safety conditions of 
+any Jasmin code are verified.
+
+
+\subsubsection{Contribution}
+We wrote a new safety checker for Jasmin 
+\footnote{The source code can be found here : \url{https://github.com/LeoJuguet/jasmin/tree/cryptoline-mopsa/compiler/jasa}}\cite{jasmin} 
+using the MOPSA \cite{mopsa-phd} library . 
+MOPSA\cite{mopsa-phd} 
+is a modular open platform for static analysis that uses abstract interpretation 
+and is designed to be modular, 
+so that a frontend for different languages can easily be added. By relying on 
+the third-party MOPSA library, which maintains the abstract interpretation 
+backend, the resulting code base is easier to maintain from Jasmin's point 
+of view.
+
+
+
+
+This new safety checker can check whether scalars and arrays are 
+correctly initialized. The analysis of array initialisation is based on 
+an algorithm mainly inspired by a paper by Cousot \cite{cousot-article}, 
+which cannot 
+currently be implemented in MOPSA. This algorithm takes into account 
+two main criteria: a limited number of variables needed to represent 
+an array and it is not necessary to unfold loops when analysing arrays. In the 
+end, all arrays are represented by three segments and the abstraction 
+of cell values is not limited to an initialisation domain.
+
+In addition, this safety checker can detect out-of-bounds errors 
+in arrays and is modular, allowing function-independent analysis. 
+Thanks to contract support for checking properties, although at present 
+only contracts for array initialisation have been implemented. It also works 
+faster than the current checker.
+
+
+\paragraph{Limits}
+However, for the moment, the tool cannot be used in a complete Jasmin code 
+base due to the current lack of support for special instructions and memory.
+But support for special instructions can easily be added with the work already 
+done on function calls. Memory analysis is more difficult because memory aliasing 
+has to be taken into account.
+
+
+\begin{credits}
+\subsubsection{\ackname}
+This work was produced during 5-month internship at MPI-SP,
+in the Jasmin compiler team.
+
+
+\subsubsection{\discintname}
+The authors have no competing interests to declare that are
+relevant to the content of this article.
+
+\end{credits}
+%
+% ---- Bibliography ----
+%
+% BibTeX users should specify bibliography style 'splncs04'.
+% References will then be sorted and formatted in the correct style.
+%
+\bibliographystyle{splncs04}
+\bibliography{bibliography.bib}
+%
+% \begin{thebibliography}{8}
+% \bibitem{ref_article1}
+% Author, F.: Article title. Journal \textbf{2}(5), 99--110 (2016)
+
+% \bibitem{ref_lncs1}
+% Author, F., Author, S.: Title of a proceedings paper. In: Editor,
+% F., Editor, S. (eds.) CONFERENCE 2016, LNCS, vol. 9999, pp. 1--13.
+% Springer, Heidelberg (2016). \doi{10.10007/1234567890}
+
+% \bibitem{ref_book1}
+% Author, F., Author, S., Author, T.: Book title. 2nd edn. Publisher,
+% Location (1999)
+
+% \bibitem{ref_proc1}
+% Author, A.-B.: Contribution title. In: 9th International Proceedings
+% on Proceedings, pp. 1--2. Publisher, Location (2010)
+
+% \bibitem{ref_url1}
+% LNCS Homepage, \url{http://www.springer.com/lncs}, last accessed 2023/10/25
+% \end{thebibliography}
+\end{document}

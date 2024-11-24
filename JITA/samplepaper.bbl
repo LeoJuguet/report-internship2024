@@ -1,0 +1,34 @@
+\begin{thebibliography}{1}
+\providecommand{\url}[1]{\texttt{#1}}
+\providecommand{\urlprefix}{URL }
+\providecommand{\doi}[1]{https://doi.org/#1}
+
+\bibitem{jasmin}
+Almeida, J.B., Barbosa, M., Barthe, G., Blot, A., Gr\'{e}goire, B., Laporte,
+  V., Oliveira, T., Pacheco, H., Schmidt, B., Strub, P.Y.: Jasmin:
+  High-assurance and high-speed cryptography. In: Proceedings of the 2017 ACM
+  SIGSAC Conference on Computer and Communications Security. p. 1807–1823.
+  CCS '17, Association for Computing Machinery, New York, NY, USA (2017).
+  \doi{10.1145/3133956.3134078}, \url{https://doi.org/10.1145/3133956.3134078}
+
+\bibitem{cousot-lattice}
+Cousot, P., Cousot, R.: Abstract interpretation: a unified lattice model for
+  static analysis of programs by construction or approximation of fixpoints.
+  In: Proceedings of the 4th ACM SIGACT-SIGPLAN Symposium on Principles of
+  Programming Languages. p. 238–252. POPL '77, Association for Computing
+  Machinery, New York, NY, USA (1977). \doi{10.1145/512950.512973},
+  \url{https://doi.org/10.1145/512950.512973}
+
+\bibitem{cousot-article}
+Cousot, P., Cousot, R., Logozzo, F.: A parametric segmentation functor for
+  fully automatic and scalable array content analysis. SIGPLAN Not.
+  \textbf{46}(1),  105–118 (jan 2011). \doi{10.1145/1925844.1926399},
+  \url{https://doi.org/10.1145/1925844.1926399}
+
+\bibitem{mopsa-phd}
+Monat, R.: Static type and value analysis by abstract interpretation of Python
+  programs with native C libraries. Ph.D. thesis (2021),
+  \url{http://www.theses.fr/2021SORUS263}, thèse de doctorat dirigée par
+  Miné, Antoine Informatique Sorbonne université 2021
+
+\end{thebibliography}

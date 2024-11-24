@@ -1,0 +1,52 @@
+This is BibTeX, Version 0.99d (TeX Live 2024/Arch Linux)
+Capacity: max_strings=200000, hash_size=200000, hash_prime=170003
+The top-level auxiliary file: samplepaper.aux
+The style file: splncs04.bst
+Database file #1: bibliography.bib
+Warning--I'm ignoring mopsa-phd's extra "note" field
+--line 48 of file bibliography.bib
+Warning--I'm ignoring mopsa-phd's extra "url" field
+--line 49 of file bibliography.bib
+Warning--missing school in mopsa-phd
+You've used 4 entries,
+            2850 wiz_defined-function locations,
+            631 strings with 5881 characters,
+and the built_in function-call counts, 2925 in all, are:
+= -- 264
+> -- 88
+< -- 4
++ -- 37
+- -- 32
+* -- 180
+:= -- 352
+add.period$ -- 11
+call.type$ -- 4
+change.case$ -- 32
+chr.to.int$ -- 0
+cite$ -- 5
+duplicate$ -- 265
+empty$ -- 232
+format.name$ -- 35
+if$ -- 663
+int.to.chr$ -- 0
+int.to.str$ -- 4
+missing$ -- 48
+newline$ -- 18
+num.names$ -- 8
+pop$ -- 84
+preamble$ -- 1
+purify$ -- 24
+quote$ -- 0
+skip$ -- 116
+stack$ -- 0
+substring$ -- 148
+swap$ -- 169
+text.length$ -- 4
+text.prefix$ -- 0
+top$ -- 0
+type$ -- 16
+warning$ -- 1
+while$ -- 16
+width$ -- 5
+write$ -- 59
+(There were 3 warnings)
